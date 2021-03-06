@@ -16,7 +16,7 @@ This tool has been informally known as Chief Multisig Officer at Yearn_ and has 
    detailed
    useful
    changelog
-   brownie_safe
+   ape_safe
 
 
 .. _Brownie: https://eth-brownie.readthedocs.io/en/latest/

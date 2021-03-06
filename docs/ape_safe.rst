@@ -1,7 +1,7 @@
 API docs
 ================
 
-.. automodule:: brownie_safe
+.. automodule:: ape_safe
    :members:
    :undoc-members:
    :show-inheritance:

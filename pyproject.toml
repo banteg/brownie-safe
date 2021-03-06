@@ -1,23 +1,39 @@
-[tool.poetry]
-name = "brownie-safe"
-version = "0.7.2"
-description = "Build complex Gnosis Safe transactions and safely preview them in a forked environment."
-authors = ["banteg"]
-license = "MIT"
-repository = "https://github.com/banteg/brownie-safe"
-readme = "readme.md"
-
-[tool.poetry.dependencies]
-python = ">=3.8,<3.11"
-eth-brownie = "1.19.2"
-safe-eth-py = "4.3.2"
-trezor = "0.13.7"
-
-[tool.poetry.dev-dependencies]
-
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["setuptools>=51.1.1", "wheel", "setuptools_scm[toml]>=5.0"]
 
-[tool.ruff]
-ignore = ['E501']
+[tool.mypy]
+exclude = "build/"
+
+[tool.setuptools_scm]
+write_to = "ape_safe/version.py"
+
+# NOTE: you have to use single-quoted strings in TOML for regular expressions.
+# It's the equivalent of r-strings in Python.  Multiline strings are treated as
+# verbose regular expressions by Black.  Use [ ] to denote a significant space
+# character.
+
+[tool.black]
+line-length = 100
+target-version = ['py38', 'py39', 'py310']
+include = '\.pyi?$'
+
+[tool.pytest.ini_options]
+addopts = """
+    -n auto
+    -p no:ape_test
+    --cov-branch
+    --cov-report term
+    --cov-report html
+    --cov-report xml
+    --cov=ape_safe
+"""
+python_files = "test_*.py"
+testpaths = "tests"
+markers = "fuzzing: Run Hypothesis fuzz test suite"
+
+[tool.isort]
+line_length = 100
+force_grid_wrap = 0
+include_trailing_comma = true
+multi_line_output = 3
+use_parentheses = true

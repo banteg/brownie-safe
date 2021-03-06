@@ -20,11 +20,11 @@ Play around the same way you would do with a normal account:
 
 .. code-block:: python
 
-    >>> from brownie_safe import BrownieSafe
+    >>> from ape_safe import ApeSafe
     
     # You can specify an ENS name here
     # Specify an EthereumClient if you don't run a local node
-    >>> safe = BrownieSafe('ychad.eth')
+    >>> safe = ApeSafe('ychad.eth')
     
     # Unlocked account is available as `safe.account`
     >>> safe.account
