@@ -128,7 +128,11 @@ class ApeSafe(Safe):
             raise ApiError(f'Error posting transaction: {response.content}')
 
     def estimate_gas(self, safe_tx: SafeTx) -> int:
-        return self.estimate_tx_gas(safe_tx.to, safe_tx.value, safe_tx.data, safe_tx.operation)
+        """
+        Estimate gas limit for successful execution and update the transaction.
+        """
+        safe_tx.safe_tx_gas = self.estimate_tx_gas(safe_tx.to, safe_tx.value, safe_tx.data, safe_tx.operation)
+        return safe_tx.safe_tx_gas
 
     def preview(self, safe_tx: SafeTx, events=True, call_trace=False):
         """
