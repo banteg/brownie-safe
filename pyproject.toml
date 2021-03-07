@@ -5,6 +5,7 @@ description = "Build complex Gnosis Safe transactions and safely preview them in
 authors = ["banteg <banteeg@gmail.com>"]
 license = "MIT"
 repository = "https://github.com/banteg/ape-safe"
+readme = "readme.md"
 
 [tool.poetry.dependencies]
 python = "^3.8"
