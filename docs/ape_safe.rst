@@ -5,3 +5,4 @@ API docs
    :members:
    :undoc-members:
    :show-inheritance:
+   :exclude-members: base_url, multisend
