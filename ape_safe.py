@@ -134,11 +134,12 @@ class ApeSafe(Safe):
         safe_tx.safe_tx_gas = self.estimate_tx_gas(safe_tx.to, safe_tx.value, safe_tx.data, safe_tx.operation)
         return safe_tx.safe_tx_gas
 
-    def preview(self, safe_tx: SafeTx, events=True, call_trace=False):
+    def preview(self, safe_tx: SafeTx, events=True, call_trace=False, reset=True):
         """
         Dry run a Safe transaction in a forked environment.
         """
-        chain.reset()
+        if reset:
+            chain.reset()
         tx = copy(safe_tx)
         safe = Contract.from_abi('Gnosis Safe', self.address, self.get_contract().abi)
         # replace pending nonce with the subsequent nonce
