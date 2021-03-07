@@ -179,3 +179,15 @@ class ApeSafe(Safe):
             receipt.call_trace(True)
 
         return receipt
+
+    def preview_pending(self, events=True, call_trace=False):
+        """
+        Dry run all pending transactions in a forked environment.
+        """
+        safe = Contract.from_abi('Gnosis Safe', self.address, self.get_contract().abi)
+        url = urljoin(self.base_url, f'/api/v1/safes/{self.address}/transactions/')
+        txs = requests.get(url).json()['results']
+        pending = [tx for tx in txs[::-1] if not tx["isExecuted"] and tx["nonce"] >= safe.nonce()]
+        for tx in pending:
+            safe_tx = self.build_multisig_tx(tx['to'], int(tx['value']), tx['data'] or b'', operation=tx['operation'], safe_nonce=tx['nonce'])
+            self.preview(safe_tx, events=events, call_trace=call_trace, reset=False)
