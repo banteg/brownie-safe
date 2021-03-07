@@ -37,34 +37,40 @@ class ApeSafe(Safe):
         super().__init__(address, ethereum_client)
 
     @property
-    def account(self):
+    def account(self) -> LocalAccount:
+        """
+        Unlocked Brownie account for Gnosis Safe.
+        """
         return accounts.at(self.address, force=True)
 
     def contract(self, address) -> Contract:
+        """
+        Instantiate a Brownie Contract owned by Safe account.
+        """
         if not web3.isChecksumAddress(address):
             address = web3.ens.resolve(address)
         return Contract(address, owner=self.account)
 
-    def pending_nonce(self):
+    def pending_nonce(self) -> int:
         """
-        Return the next nonce accounting for pending transactions in the Transaction service.
+        Subsequent nonce which accounts for pending transactions in the transaction service.
         """
         url = urljoin(self.base_url, f'/api/v1/safes/{self.address}/multisig-transactions/')
         results = requests.get(url).json()['results']
         return results[0]['nonce'] + 1 if results else 0
 
-    def tx_from_receipt(self, receipt: TransactionReceipt, operation: SafeOperation = SafeOperation.CALL, safe_nonce: int = None):
+    def tx_from_receipt(self, receipt: TransactionReceipt, operation: SafeOperation = SafeOperation.CALL, safe_nonce: int = None) -> SafeTx:
         """
-        Convert Brownie receipt into a Safe transaction.
+        Convert Brownie transaction receipt to a Safe transaction.
         """
         if safe_nonce is None:
             safe_nonce = self.pending_nonce()
         
         return self.build_multisig_tx(receipt.receiver, receipt.value, receipt.input, operation=operation.value, safe_nonce=safe_nonce)
 
-    def multisend_from_receipts(self, receipts: List[TransactionReceipt] = None, safe_nonce: int = None):
+    def multisend_from_receipts(self, receipts: List[TransactionReceipt] = None, safe_nonce: int = None) -> SafeTx:
         """
-        Convert Brownie tx receipts (or history) to a multisend Safe transaction.
+        Convert multiple Brownie transaction receipts (or history) to a multisend Safe transaction.
         """
         if receipts is None:
             receipts = history.from_sender(self.address)
@@ -76,9 +82,9 @@ class ApeSafe(Safe):
         data = MultiSend(self.multisend, self.ethereum_client).build_tx_data(txs)
         return self.build_multisig_tx(self.multisend, 0, data, SafeOperation.DELEGATE_CALL.value, safe_nonce=safe_nonce)
 
-    def sign_transaction(self, safe_tx: SafeTx, signer: Union[LocalAccount, str] = None):
+    def sign_transaction(self, safe_tx: SafeTx, signer: Union[LocalAccount, str] = None) -> SafeTx:
         """
-        Sign a Safe transaction using a local Brownie account.
+        Sign a Safe transaction with a local Brownie account.
         """
         if signer is None:
             signer = click.prompt('signer', type=click.Choice(accounts.load()))
@@ -94,7 +100,7 @@ class ApeSafe(Safe):
     def post_transaction(self, safe_tx: SafeTx):
         """
         Submit a Safe transaction to a transaction service.
-        Prompts for a signature and estimates gas cost if needed.
+        Estimates gas cost and prompts for a signature if needed.
 
         See also https://github.com/gnosis/safe-cli/blob/master/safe_cli/api/gnosis_transaction.py
         """
@@ -136,7 +142,7 @@ class ApeSafe(Safe):
 
     def preview(self, safe_tx: SafeTx, events=True, call_trace=False, reset=True):
         """
-        Dry run a Safe transaction in a forked environment.
+        Dry run a Safe transaction in a forked network environment.
         """
         if reset:
             chain.reset()
