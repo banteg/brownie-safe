@@ -104,9 +104,6 @@ class ApeSafe(Safe):
 
         See also https://github.com/gnosis/safe-cli/blob/master/safe_cli/api/gnosis_transaction.py
         """
-        if safe_tx.safe_tx_gas == 0:
-            safe_tx.safe_tx_gas = self.estimate_gas(safe_tx)
-        
         if not safe_tx.sorted_signers:
             self.sign_transaction(safe_tx)
         
@@ -135,10 +132,9 @@ class ApeSafe(Safe):
 
     def estimate_gas(self, safe_tx: SafeTx) -> int:
         """
-        Estimate gas limit for successful execution and update the transaction.
+        Estimate gas limit for successful execution.
         """
-        safe_tx.safe_tx_gas = self.estimate_tx_gas(safe_tx.to, safe_tx.value, safe_tx.data, safe_tx.operation)
-        return safe_tx.safe_tx_gas
+        return self.estimate_tx_gas(safe_tx.to, safe_tx.value, safe_tx.data, safe_tx.operation)
 
     def preview(self, safe_tx: SafeTx, events=True, call_trace=False, reset=True):
         """

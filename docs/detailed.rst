@@ -62,7 +62,7 @@ Play around the same way you would do with a normal account:
     >>> signed_tx = safe.sign_transaction(safe_tx)
 
     # Post it to the transaction service
-    # Automatically estimates gas and prompts for a signature
+    # Prompts for a signature if needed
     >>> safe.post_transaction(safe_tx)
 
     # You can also preview side effects of pending transactions
