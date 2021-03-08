@@ -14,7 +14,6 @@ This tool has been informally known as Chief Multisig Officer and it has been us
    install
    detailed
    ape_safe
-   GitHub <https://github.com/banteg/ape-safe>
 
 
 .. _Brownie: https://eth-brownie.readthedocs.io/en/latest/
