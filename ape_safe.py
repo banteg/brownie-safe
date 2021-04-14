@@ -5,6 +5,7 @@ from urllib.parse import urljoin
 import click
 import requests
 from brownie import Contract, accounts, chain, history, web3
+from brownie.convert.datatypes import EthAddress
 from brownie.network.account import LocalAccount
 from brownie.network.transaction import TransactionReceipt
 from eth_abi import encode_abi
@@ -35,6 +36,9 @@ class ApeSafe(Safe):
         if ethereum_client is None:
             ethereum_client = EthereumClient()
         super().__init__(address, ethereum_client)
+
+    def __str__(self):
+        return EthAddress(self.address)
 
     @property
     def account(self) -> LocalAccount:
