@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ape-safe"
-version = "0.1.3"
+version = "0.1.4"
 description = "Build complex Gnosis Safe transactions and safely preview them in a forked environment."
 authors = ["banteg <banteeg@gmail.com>"]
 license = "MIT"
@@ -8,7 +8,7 @@ repository = "https://github.com/banteg/ape-safe"
 readme = "readme.md"
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.7"
 eth-brownie = "^1.13.2"
 gnosis-py = "^2.7.14"
 
