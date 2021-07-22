@@ -25,7 +25,7 @@ class ApiError(Exception):
 
 class ApeSafe(Safe):
     base_url = 'https://safe-transaction.mainnet.gnosis.io'
-    multisend = '0x8D29bE29923b68abfDD21e541b9374737B49cdAD'
+    multisend = '0x40A2aCCbd92BCA938b02010E17A5b8929b49130D'
 
     def __init__(self, address, ethereum_client: EthereumClient = None):
         """
