@@ -10,7 +10,7 @@ readme = "readme.md"
 [tool.poetry.dependencies]
 python = "^3.7"
 eth-brownie = "^1.13.2"
-gnosis-py = "^2.7.14"
+gnosis-py = "^3.1.13"
 
 [tool.poetry.dev-dependencies]
 
