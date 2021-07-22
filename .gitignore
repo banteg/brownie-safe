@@ -1,3 +1,4 @@
 dist/
 _build/
 poetry.lock
+.hypothesis/
