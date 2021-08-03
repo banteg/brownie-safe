@@ -200,6 +200,11 @@ class ApeSafe(Safe):
         if call_trace:
             receipt.call_trace(True)
 
+        # Offset gas refund for clearing storage when on-chain signatures are consumed.
+        # https://github.com/gnosis/safe-contracts/blob/v1.1.1/contracts/GnosisSafe.sol#L140
+        refunded_gas = 15_000 * (threshold - 1)
+        click.secho(f'recommended gas limit: {receipt.gas_used + refunded_gas}', fg='green', bold=True)
+
         return receipt
 
     def preview_pending(self, events=True, call_trace=False):
