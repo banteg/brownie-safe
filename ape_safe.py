@@ -15,6 +15,7 @@ from gnosis.safe.multi_send import MultiSend, MultiSendOperation, MultiSendTx
 from gnosis.safe.safe_tx import SafeTx
 
 
+MULTISEND_CALL_ONLY = '0x40A2aCCbd92BCA938b02010E17A5b8929b49130D'
 transaction_service = {
     1: 'https://safe-transaction.mainnet.gnosis.io',
     4: 'https://safe-transaction.rinkeby.gnosis.io',
@@ -37,17 +38,17 @@ class ApiError(Exception):
 
 
 class ApeSafe(Safe):
-    base_url = 'https://safe-transaction.mainnet.gnosis.io'
-    multisend = '0x40A2aCCbd92BCA938b02010E17A5b8929b49130D'
 
-    def __init__(self, address):
+    def __init__(self, address, base_url=None, multisend=MULTISEND_CALL_ONLY):
         """
         Create an ApeSafe from an address or a ENS name and use a default connection.
         """
         if not web3.isChecksumAddress(address):
             address = web3.ens.resolve(address)
         ethereum_client = EthereumClient(web3.provider.endpoint_uri)
-        self.base_url = transaction_service[chain.id]
+        self.multisend = multisend
+        if base_url is None:
+            self.base_url = transaction_service[chain.id]
         super().__init__(address, ethereum_client)
 
     def __str__(self):
@@ -153,7 +154,7 @@ class ApeSafe(Safe):
         """
         return self.estimate_tx_gas(safe_tx.to, safe_tx.value, safe_tx.data, safe_tx.operation)
 
-    def preview(self, safe_tx: SafeTx, events=True, call_trace=False, reset=True):
+    def preview(self, safe_tx: SafeTx, events=True, call_trace=False, reset=True, gas_limit=None):
         """
         Dry run a Safe transaction in a forked network environment.
         """
@@ -161,13 +162,15 @@ class ApeSafe(Safe):
             chain.reset()
         tx = copy(safe_tx)
         safe = Contract.from_abi('Gnosis Safe', self.address, self.get_contract().abi)
-        # replace pending nonce with the subsequent nonce
+        # Replace pending nonce with the subsequent nonce
         tx.safe_nonce = safe.nonce()
         # Forge signatures from the needed amount of owners, skip the one which submits the tx
-        owners = [accounts.at(owner, force=True) for owner in sorted(safe.getOwners())]
+        # Owners must be sorted numerically, sorting as checksum addresses may yield wrong order
+        owners = [accounts.at(owner, force=True) for owner in sorted(safe.getOwners(), key=str.lower)]
         threshold = safe.getThreshold()
         for owner in owners[1:threshold]:
-            safe.approveHash(tx.safe_tx_hash.hex(), {'from': owner})
+            safe.approveHash(tx.safe_tx_hash.hex(), {'from': owner, 'gas_price': 0, 'gas_limit': gas_limit})
+
         # Signautres are encoded as [bytes32 r, bytes32 s, bytes8 v]
         # Pre-validated signatures are encoded as r=owner, s unused and v=1.
         # https://docs.gnosis.io/safe/docs/contracts_signatures/#pre-validated-signatures
@@ -185,7 +188,7 @@ class ApeSafe(Safe):
             signatures,
         ]
 
-        receipt = safe.execTransaction(*args, {'from': owners[0]})
+        receipt = safe.execTransaction(*args, {'from': owners[0], 'gas_price': 0, 'gas_limit': gas_limit})
         if 'ExecutionSuccess' not in receipt.events:
             receipt.info()
             receipt.call_trace(True)
@@ -196,6 +199,11 @@ class ApeSafe(Safe):
 
         if call_trace:
             receipt.call_trace(True)
+
+        # Offset gas refund for clearing storage when on-chain signatures are consumed.
+        # https://github.com/gnosis/safe-contracts/blob/v1.1.1/contracts/GnosisSafe.sol#L140
+        refunded_gas = 15_000 * (threshold - 1)
+        click.secho(f'recommended gas limit: {receipt.gas_used + refunded_gas}', fg='green', bold=True)
 
         return receipt
 
