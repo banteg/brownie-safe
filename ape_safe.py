@@ -154,7 +154,7 @@ class ApeSafe(Safe):
         """
         return self.estimate_tx_gas(safe_tx.to, safe_tx.value, safe_tx.data, safe_tx.operation)
 
-    def preview(self, safe_tx: SafeTx, events=True, call_trace=False, reset=True):
+    def preview(self, safe_tx: SafeTx, events=True, call_trace=False, reset=True, gas_limit=None):
         """
         Dry run a Safe transaction in a forked network environment.
         """
@@ -162,14 +162,15 @@ class ApeSafe(Safe):
             chain.reset()
         tx = copy(safe_tx)
         safe = Contract.from_abi('Gnosis Safe', self.address, self.get_contract().abi)
-        # replace pending nonce with the subsequent nonce
+        # Replace pending nonce with the subsequent nonce
         tx.safe_nonce = safe.nonce()
         # Forge signatures from the needed amount of owners, skip the one which submits the tx
         # Owners must be sorted numerically, sorting as checksum addresses may yield wrong order
         owners = [accounts.at(owner, force=True) for owner in sorted(safe.getOwners(), key=str.lower)]
         threshold = safe.getThreshold()
         for owner in owners[1:threshold]:
-            safe.approveHash(tx.safe_tx_hash.hex(), {'from': owner})
+            safe.approveHash(tx.safe_tx_hash.hex(), {'from': owner, 'gas_price': 0, 'gas_limit': gas_limit})
+
         # Signautres are encoded as [bytes32 r, bytes32 s, bytes8 v]
         # Pre-validated signatures are encoded as r=owner, s unused and v=1.
         # https://docs.gnosis.io/safe/docs/contracts_signatures/#pre-validated-signatures
@@ -187,7 +188,7 @@ class ApeSafe(Safe):
             signatures,
         ]
 
-        receipt = safe.execTransaction(*args, {'from': owners[0]})
+        receipt = safe.execTransaction(*args, {'from': owners[0], 'gas_price': 0, 'gas_limit': gas_limit})
         if 'ExecutionSuccess' not in receipt.events:
             receipt.info()
             receipt.call_trace(True)
