@@ -165,7 +165,8 @@ class ApeSafe(Safe):
         # replace pending nonce with the subsequent nonce
         tx.safe_nonce = safe.nonce()
         # Forge signatures from the needed amount of owners, skip the one which submits the tx
-        owners = [accounts.at(owner, force=True) for owner in sorted(safe.getOwners())]
+        # Owners must be sorted numerically, sorting as checksum addresses may yield wrong order
+        owners = [accounts.at(owner, force=True) for owner in sorted(safe.getOwners(), key=str.lower)]
         threshold = safe.getThreshold()
         for owner in owners[1:threshold]:
             safe.approveHash(tx.safe_tx_hash.hex(), {'from': owner})
