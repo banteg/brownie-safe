@@ -40,14 +40,15 @@ class ApeSafe(Safe):
     base_url = 'https://safe-transaction.mainnet.gnosis.io'
     multisend = '0x40A2aCCbd92BCA938b02010E17A5b8929b49130D'
 
-    def __init__(self, address):
+    def __init__(self, address, base_url=None):
         """
         Create an ApeSafe from an address or a ENS name and use a default connection.
         """
         if not web3.isChecksumAddress(address):
             address = web3.ens.resolve(address)
         ethereum_client = EthereumClient(web3.provider.endpoint_uri)
-        self.base_url = transaction_service[chain.id]
+        if base_url is None:
+            self.base_url = transaction_service[chain.id]
         super().__init__(address, ethereum_client)
 
     def __str__(self):
