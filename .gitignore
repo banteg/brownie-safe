@@ -2,3 +2,4 @@ dist/
 _build/
 poetry.lock
 .hypothesis/
+__pycache__
