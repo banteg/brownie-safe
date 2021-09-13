@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ape-safe"
-version = "0.2.0"
+version = "0.2.1"
 description = "Build complex Gnosis Safe transactions and safely preview them in a forked environment."
 authors = ["banteg <banteeg@gmail.com>"]
 license = "MIT"

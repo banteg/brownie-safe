@@ -16,6 +16,9 @@ from gnosis.safe.safe_tx import SafeTx
 
 
 MULTISEND_CALL_ONLY = '0x40A2aCCbd92BCA938b02010E17A5b8929b49130D'
+multisends = {
+    250: '0x10B62CC1E8D9a9f1Ad05BCC491A7984697c19f7E',
+}
 transaction_service = {
     1: 'https://safe-transaction.mainnet.gnosis.io',
     4: 'https://safe-transaction.rinkeby.gnosis.io',
@@ -23,6 +26,7 @@ transaction_service = {
     56: 'https://safe-transaction.bsc.gnosis.io',
     100: 'https://safe-transaction.xdai.gnosis.io',
     137: 'https://safe-transaction.polygon.gnosis.io',
+    250: 'https://safe.fantom.network',
     246: 'https://safe-transaction.ewc.gnosis.io',
     42161: 'https://safe-transaction.arbitrum.gnosis.io',
     73799: 'https://safe-transaction.volta.gnosis.io',
@@ -39,16 +43,15 @@ class ApiError(Exception):
 
 class ApeSafe(Safe):
 
-    def __init__(self, address, base_url=None, multisend=MULTISEND_CALL_ONLY):
+    def __init__(self, address, base_url=None, multisend=None):
         """
         Create an ApeSafe from an address or a ENS name and use a default connection.
         """
         if not web3.isChecksumAddress(address):
             address = web3.ens.resolve(address)
         ethereum_client = EthereumClient(web3.provider.endpoint_uri)
-        self.multisend = multisend
-        if base_url is None:
-            self.base_url = transaction_service[chain.id]
+        self.base_url = base_url or transaction_service[chain.id]
+        self.multisend = multisend or multisends.get(chain.id, MULTISEND_CALL_ONLY)
         super().__init__(address, ethereum_client)
 
     def __str__(self):
