@@ -9,8 +9,8 @@ readme = "readme.md"
 
 [tool.poetry.dependencies]
 python = "^3.8"
-eth-brownie = "^1.15.0"
-gnosis-py = "^3.1.13"
+eth-brownie = "^1.16.3"
+gnosis-py = "^3.2.2"
 
 [tool.poetry.dev-dependencies]
 
