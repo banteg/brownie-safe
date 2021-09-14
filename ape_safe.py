@@ -68,8 +68,13 @@ class ApeSafe(Safe):
         """
         Instantiate a Brownie Contract owned by Safe account.
         """
+
         if not web3.isChecksumAddress(address):
-            address = web3.ens.resolve(address)
+            resolved_address = web3.ens.resolve(address)
+            if not resolved_address:
+                raise ValueError(f'Not a valid (checksummed) address: {address}')
+            else:
+                address = resolved_address
         return Contract(address, owner=self.account)
 
     def pending_nonce(self) -> int:
@@ -86,7 +91,7 @@ class ApeSafe(Safe):
         """
         if safe_nonce is None:
             safe_nonce = self.pending_nonce()
-        
+
         return self.build_multisig_tx(receipt.receiver, receipt.value, receipt.input, operation=operation.value, safe_nonce=safe_nonce)
 
     def multisend_from_receipts(self, receipts: List[TransactionReceipt] = None, safe_nonce: int = None) -> SafeTx:
@@ -95,10 +100,10 @@ class ApeSafe(Safe):
         """
         if receipts is None:
             receipts = history.from_sender(self.address)
-        
+
         if safe_nonce is None:
             safe_nonce = self.pending_nonce()
-        
+
         txs = [MultiSendTx(MultiSendOperation.CALL, tx.receiver, tx.value, tx.input) for tx in receipts]
         data = MultiSend(self.multisend, self.ethereum_client).build_tx_data(txs)
         return self.build_multisig_tx(self.multisend, 0, data, SafeOperation.DELEGATE_CALL.value, safe_nonce=safe_nonce)
@@ -109,12 +114,12 @@ class ApeSafe(Safe):
         """
         if signer is None:
             signer = click.prompt('signer', type=click.Choice(accounts.load()))
-        
+
         if isinstance(signer, str):
             # Avoids a previously impersonated account with no signing capabilities
             accounts.clear()
             signer = accounts.load(signer)
-        
+
         safe_tx.sign(signer.private_key)
         return safe_tx
 
@@ -127,7 +132,7 @@ class ApeSafe(Safe):
         """
         if not safe_tx.sorted_signers:
             self.sign_transaction(safe_tx)
-        
+
         sender = safe_tx.sorted_signers[0]
 
         url = urljoin(self.base_url, f'/api/v1/safes/{self.address}/multisig-transactions/')
@@ -196,7 +201,7 @@ class ApeSafe(Safe):
             receipt.info()
             receipt.call_trace(True)
             raise ExecutionFailure()
-        
+
         if events:
             receipt.info()
 
