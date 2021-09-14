@@ -68,7 +68,6 @@ class ApeSafe(Safe):
         """
         Instantiate a Brownie Contract owned by Safe account.
         """
-
         if not web3.isChecksumAddress(address):
             resolved_address = web3.ens.resolve(address)
             if not resolved_address:
