@@ -9,6 +9,7 @@ from brownie.convert.datatypes import EthAddress
 from brownie.network.account import LocalAccount
 from brownie.network.transaction import TransactionReceipt
 from eth_abi import encode_abi
+from eth_utils import is_address, to_checksum_address
 from gnosis.eth import EthereumClient
 from gnosis.safe import Safe, SafeOperation
 from gnosis.safe.multi_send import MultiSend, MultiSendOperation, MultiSendTx
@@ -47,8 +48,7 @@ class ApeSafe(Safe):
         """
         Create an ApeSafe from an address or a ENS name and use a default connection.
         """
-        if not web3.isChecksumAddress(address):
-            address = web3.ens.resolve(address)
+        address = to_checksum_address(address) if is_address(address) else web3.ens.resolve(address)
         ethereum_client = EthereumClient(web3.provider.endpoint_uri)
         self.base_url = base_url or transaction_service[chain.id]
         self.multisend = multisend or multisends.get(chain.id, MULTISEND_CALL_ONLY)
@@ -56,6 +56,9 @@ class ApeSafe(Safe):
 
     def __str__(self):
         return EthAddress(self.address)
+
+    def __repr__(self):
+        return f'ApeSafe("{self.address}")'
 
     @property
     def account(self) -> LocalAccount:
