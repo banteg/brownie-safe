@@ -15,7 +15,6 @@ from gnosis.safe import Safe, SafeOperation
 from gnosis.safe.multi_send import MultiSend, MultiSendOperation, MultiSendTx
 from gnosis.safe.safe_tx import SafeTx
 
-
 MULTISEND_CALL_ONLY = '0x40A2aCCbd92BCA938b02010E17A5b8929b49130D'
 multisends = {
     250: '0x10B62CC1E8D9a9f1Ad05BCC491A7984697c19f7E',
@@ -89,7 +88,7 @@ class ApeSafe(Safe):
         """
         if safe_nonce is None:
             safe_nonce = self.pending_nonce()
-        
+
         return self.build_multisig_tx(receipt.receiver, receipt.value, receipt.input, operation=operation.value, safe_nonce=safe_nonce)
 
     def multisend_from_receipts(self, receipts: List[TransactionReceipt] = None, safe_nonce: int = None) -> SafeTx:
@@ -98,10 +97,10 @@ class ApeSafe(Safe):
         """
         if receipts is None:
             receipts = history.from_sender(self.address)
-        
+
         if safe_nonce is None:
             safe_nonce = self.pending_nonce()
-        
+
         txs = [MultiSendTx(MultiSendOperation.CALL, tx.receiver, tx.value, tx.input) for tx in receipts]
         data = MultiSend(self.multisend, self.ethereum_client).build_tx_data(txs)
         return self.build_multisig_tx(self.multisend, 0, data, SafeOperation.DELEGATE_CALL.value, safe_nonce=safe_nonce)
@@ -112,12 +111,12 @@ class ApeSafe(Safe):
         """
         if signer is None:
             signer = click.prompt('signer', type=click.Choice(accounts.load()))
-        
+
         if isinstance(signer, str):
             # Avoids a previously impersonated account with no signing capabilities
             accounts.clear()
             signer = accounts.load(signer)
-        
+
         safe_tx.sign(signer.private_key)
         return safe_tx
 
@@ -130,10 +129,11 @@ class ApeSafe(Safe):
         """
         if not safe_tx.sorted_signers:
             self.sign_transaction(safe_tx)
-        
+
         sender = safe_tx.sorted_signers[0]
 
         url = urljoin(self.base_url, f'/api/v1/safes/{self.address}/multisig-transactions/')
+
         data = {
             'to': safe_tx.to,
             'value': safe_tx.value,
@@ -154,13 +154,21 @@ class ApeSafe(Safe):
         if not response.ok:
             raise ApiError(f'Error posting transaction: {response.content}')
 
-    def estimate_gas(self, safe_tx: SafeTx) -> int:
+    def estimate_gas(self, safe_tx: SafeTx, update_safe_tx_gas: bool = False, multiplier: float = 1.1) -> int:
         """
-        Estimate gas limit for successful execution.
+        Estimate gas limit for successful execution. If `update_tx_gas=True` provided SafeTx will have `safe_tx_gas`
+        and `base_gas` updated
         """
-        return self.estimate_tx_gas(safe_tx.to, safe_tx.value, safe_tx.data, safe_tx.operation)
+        # return self.estimate_tx_gas(safe_tx.to, safe_tx.value, safe_tx.data, safe_tx.operation)
+        gas_estimation = 20_000 + int(multiplier * self.preview(safe_tx, events=False, print_details=False).gas_used)
+        if update_safe_tx_gas:
+            safe_tx.safe_tx_gas = gas_estimation
+            safe_tx.base_gas = self.estimate_tx_base_gas(safe_tx.to, safe_tx.value, safe_tx.data, safe_tx.operation,
+                                                         safe_tx.gas_token, safe_tx.safe_tx_gas)
+            safe_tx.signatures = b''  # As we are modifying the tx, previous signatures are not valid anymore
+        return gas_estimation
 
-    def preview(self, safe_tx: SafeTx, events=True, call_trace=False, reset=True, gas_limit=None):
+    def preview(self, safe_tx: SafeTx, events=True, call_trace=False, reset=True, gas_limit=None, print_details=True):
         """
         Dry run a Safe transaction in a forked network environment.
         """
@@ -199,7 +207,7 @@ class ApeSafe(Safe):
             receipt.info()
             receipt.call_trace(True)
             raise ExecutionFailure()
-        
+
         if events:
             receipt.info()
 
@@ -209,7 +217,8 @@ class ApeSafe(Safe):
         # Offset gas refund for clearing storage when on-chain signatures are consumed.
         # https://github.com/gnosis/safe-contracts/blob/v1.1.1/contracts/GnosisSafe.sol#L140
         refunded_gas = 15_000 * (threshold - 1)
-        click.secho(f'recommended gas limit: {receipt.gas_used + refunded_gas}', fg='green', bold=True)
+        if print_details:
+            click.secho(f'recommended gas limit: {receipt.gas_used + refunded_gas}', fg='green', bold=True)
 
         return receipt
 
