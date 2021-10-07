@@ -157,14 +157,14 @@ class ApeSafe(Safe):
     def estimate_gas(self, safe_tx: SafeTx, update_safe_tx_gas: bool = False, multiplier: float = 1.1) -> int:
         """
         Estimate gas limit for successful execution. If `update_tx_gas=True` provided SafeTx will have `safe_tx_gas`
-        and `base_gas` updated
+        updated
         """
         # return self.estimate_tx_gas(safe_tx.to, safe_tx.value, safe_tx.data, safe_tx.operation)
-        gas_estimation = 20_000 + int(multiplier * self.preview(safe_tx, events=False, print_details=False).gas_used)
+        gas_used = self.preview(safe_tx, events=False, print_details=False).gas_used
+        safe_tx_gas = max(gas_used * 64 // 63, gas_used + 2500) + 500
+        gas_estimation = 35_000 + int(multiplier * safe_tx_gas)
         if update_safe_tx_gas:
             safe_tx.safe_tx_gas = gas_estimation
-            safe_tx.base_gas = self.estimate_tx_base_gas(safe_tx.to, safe_tx.value, safe_tx.data, safe_tx.operation,
-                                                         safe_tx.gas_token, safe_tx.safe_tx_gas)
             safe_tx.signatures = b''  # As we are modifying the tx, previous signatures are not valid anymore
         return gas_estimation
 
