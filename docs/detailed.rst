@@ -21,11 +21,11 @@ Play around the same way you would do with a normal account:
 .. code-block:: python
 
     >>> from ape_safe import ApeSafe
-    
+
     # You can specify an ENS name here
     # Specify an EthereumClient if you don't run a local node
     >>> safe = ApeSafe('ychad.eth')
-    
+
     # Unlocked account is available as `safe.account`
     >>> safe.account
     <Account '0xFEB4acf3df3cDEA7399794D0869ef76A6EfAff52'>
@@ -46,7 +46,7 @@ Play around the same way you would do with a normal account:
     >>> vault.depositAll()
     >>> vault.balanceOf(safe.account)
     2609.5479641693646
-    
+
     # Combine transaction history into a multisend transaction
     >>> safe_tx = safe.multisend_from_receipts()
 
