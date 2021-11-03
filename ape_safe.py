@@ -3,7 +3,6 @@ from typing import Dict, List, Union
 from urllib.parse import urljoin
 
 import click
-from gnosis.safe.signatures import signature_split, signature_to_bytes
 import requests
 from web3 import Web3  # don't move below brownie import
 from brownie import Contract, accounts, chain, history, web3
@@ -16,9 +15,9 @@ from gnosis.eth import EthereumClient
 from gnosis.safe import Safe, SafeOperation
 from gnosis.safe.multi_send import MultiSend, MultiSendOperation, MultiSendTx
 from gnosis.safe.safe_tx import SafeTx
+from gnosis.safe.signatures import signature_split, signature_to_bytes
 from hexbytes import HexBytes
 from packaging.version import Version
-from py_eth_sig_utils.eip712 import encode_typed_data
 
 MULTISEND_CALL_ONLY = '0x40A2aCCbd92BCA938b02010E17A5b8929b49130D'
 multisends = {
@@ -189,6 +188,9 @@ class ApeSafe(Safe):
         signature = frame.manager.request_blocking('eth_signTypedData_v4', [account, safe_tx_data(safe_tx)])
         # Convert to format expected by Gnosis Safe
         v, r, s = signature_split(signature)
+        # Ledger doesn't support EIP-155
+        if v in {0, 1}:
+            v += 27
         signature = signature_to_bytes(v, r, s)
         if account not in safe_tx.signers:
             new_owners = safe_tx.signers + [account]
