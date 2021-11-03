@@ -1,9 +1,11 @@
 from copy import copy
-from typing import List, Union
+from typing import Dict, List, Union
 from urllib.parse import urljoin
 
 import click
+from gnosis.safe.signatures import signature_split, signature_to_bytes
 import requests
+from web3 import Web3  # don't move below brownie import
 from brownie import Contract, accounts, chain, history, web3
 from brownie.convert.datatypes import EthAddress
 from brownie.network.account import LocalAccount
@@ -14,7 +16,9 @@ from gnosis.eth import EthereumClient
 from gnosis.safe import Safe, SafeOperation
 from gnosis.safe.multi_send import MultiSend, MultiSendOperation, MultiSendTx
 from gnosis.safe.safe_tx import SafeTx
-
+from hexbytes import HexBytes
+from packaging.version import Version
+from py_eth_sig_utils.eip712 import encode_typed_data
 
 MULTISEND_CALL_ONLY = '0x40A2aCCbd92BCA938b02010E17A5b8929b49130D'
 multisends = {
@@ -40,6 +44,61 @@ class ExecutionFailure(Exception):
 
 class ApiError(Exception):
     pass
+
+
+def safe_tx_data(self) -> Dict:
+    # backport of https://github.com/gnosis/gnosis-py/pull/120
+    data = self.data.hex() if self.data else ""
+
+    # Safes >= 1.0.0 Renamed `baseGas` to `dataGas`
+    safe_version = Version(self.safe_version)
+    base_gas_name = "baseGas" if safe_version >= Version("1.0.0") else "dataGas"
+
+    structured_data = {
+        "types": {
+            "EIP712Domain": [
+                {"name": "verifyingContract", "type": "address"},
+            ],
+            "SafeTx": [
+                {"name": "to", "type": "address"},
+                {"name": "value", "type": "uint256"},
+                {"name": "data", "type": "bytes"},
+                {"name": "operation", "type": "uint8"},
+                {"name": "safeTxGas", "type": "uint256"},
+                {"name": base_gas_name, "type": "uint256"},
+                {"name": "gasPrice", "type": "uint256"},
+                {"name": "gasToken", "type": "address"},
+                {"name": "refundReceiver", "type": "address"},
+                {"name": "nonce", "type": "uint256"},
+            ],
+        },
+        "primaryType": "SafeTx",
+        "domain": {
+            "verifyingContract": self.safe_address,
+        },
+        "message": {
+            "to": self.to,
+            "value": self.value,
+            "data": data,
+            "operation": self.operation,
+            "safeTxGas": self.safe_tx_gas,
+            base_gas_name: self.base_gas,
+            "gasPrice": self.gas_price,
+            "gasToken": self.gas_token,
+            "refundReceiver": self.refund_receiver,
+            "nonce": self.safe_nonce,
+        },
+    }
+
+    # Safes >= 1.3.0 Added `chainId` to the domain
+    if safe_version >= Version("1.3.0"):
+        # EIP712Domain(uint256 chainId,address verifyingContract)
+        structured_data["types"]["EIP712Domain"].insert(
+            0, {"name": "chainId", "type": "uint256"}
+        )
+        structured_data["domain"]["chainId"] = self.chain_id
+
+    return structured_data
 
 
 class ApeSafe(Safe):
