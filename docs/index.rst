@@ -12,7 +12,9 @@ This tool has been informally known as Chief Multisig Officer and it has been us
    intro
    quickstart
    install
+   signing
    detailed
+   useful
    ape_safe
 
 
