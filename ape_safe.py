@@ -177,8 +177,28 @@ class ApeSafe(Safe):
             accounts.clear()
             signer = accounts.load(signer)
         
-        safe_tx.sign(signer.private_key)
-        return safe_tx
+        return safe_tx.sign(signer.private_key)
+
+    def sign_with_frame(self, safe_tx: SafeTx, frame_rpc="http://127.0.0.1:1248") -> bytes:
+        """
+        Sign a Safe transaction using Frame. Use this option with hardware wallets.
+        """
+        # Requesting accounts triggers a connect prompt
+        frame = Web3(Web3.HTTPProvider(frame_rpc))
+        account = frame.eth.accounts[0]
+        signature = frame.manager.request_blocking('eth_signTypedData_v4', [account, safe_tx_data(safe_tx)])
+        # Convert to format expected by Gnosis Safe
+        v, r, s = signature_split(signature)
+        signature = signature_to_bytes(v, r, s)
+        if account not in safe_tx.signers:
+            new_owners = safe_tx.signers + [account]
+            new_owner_pos = sorted(new_owners, key=lambda x: int(x, 16)).index(account)
+            safe_tx.signatures = (
+                safe_tx.signatures[: 65 * new_owner_pos]
+                + signature
+                + safe_tx.signatures[65 * new_owner_pos :]
+            )
+        return signature
 
     def post_transaction(self, safe_tx: SafeTx):
         """
