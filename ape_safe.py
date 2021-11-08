@@ -45,61 +45,6 @@ class ApiError(Exception):
     pass
 
 
-def safe_tx_data(self) -> Dict:
-    # backport of https://github.com/gnosis/gnosis-py/pull/120
-    data = self.data.hex() if self.data else ""
-
-    # Safes >= 1.0.0 Renamed `baseGas` to `dataGas`
-    safe_version = Version(self.safe_version)
-    base_gas_name = "baseGas" if safe_version >= Version("1.0.0") else "dataGas"
-
-    structured_data = {
-        "types": {
-            "EIP712Domain": [
-                {"name": "verifyingContract", "type": "address"},
-            ],
-            "SafeTx": [
-                {"name": "to", "type": "address"},
-                {"name": "value", "type": "uint256"},
-                {"name": "data", "type": "bytes"},
-                {"name": "operation", "type": "uint8"},
-                {"name": "safeTxGas", "type": "uint256"},
-                {"name": base_gas_name, "type": "uint256"},
-                {"name": "gasPrice", "type": "uint256"},
-                {"name": "gasToken", "type": "address"},
-                {"name": "refundReceiver", "type": "address"},
-                {"name": "nonce", "type": "uint256"},
-            ],
-        },
-        "primaryType": "SafeTx",
-        "domain": {
-            "verifyingContract": self.safe_address,
-        },
-        "message": {
-            "to": self.to,
-            "value": self.value,
-            "data": data,
-            "operation": self.operation,
-            "safeTxGas": self.safe_tx_gas,
-            base_gas_name: self.base_gas,
-            "gasPrice": self.gas_price,
-            "gasToken": self.gas_token,
-            "refundReceiver": self.refund_receiver,
-            "nonce": self.safe_nonce,
-        },
-    }
-
-    # Safes >= 1.3.0 Added `chainId` to the domain
-    if safe_version >= Version("1.3.0"):
-        # EIP712Domain(uint256 chainId,address verifyingContract)
-        structured_data["types"]["EIP712Domain"].insert(
-            0, {"name": "chainId", "type": "uint256"}
-        )
-        structured_data["domain"]["chainId"] = self.chain_id
-
-    return structured_data
-
-
 class ApeSafe(Safe):
 
     def __init__(self, address, base_url=None, multisend=None):
@@ -182,11 +127,11 @@ class ApeSafe(Safe):
         """
         Sign a Safe transaction using Frame. Use this option with hardware wallets.
         """
-        # Requesting accounts triggers a connect prompt
+        # Requesting accounts triggers a connection prompt
         frame = Web3(Web3.HTTPProvider(frame_rpc))
         account = frame.eth.accounts[0]
-        signature = frame.manager.request_blocking('eth_signTypedData_v4', [account, safe_tx_data(safe_tx)])
-        # Convert to format expected by Gnosis Safe
+        signature = frame.manager.request_blocking('eth_signTypedData_v4', [account, safe_tx.eip712_structured_data])
+        # Convert to a format expected by Gnosis Safe
         v, r, s = signature_split(signature)
         # Ledger doesn't support EIP-155
         if v in {0, 1}:
