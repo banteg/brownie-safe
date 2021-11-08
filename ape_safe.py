@@ -178,7 +178,18 @@ class ApeSafe(Safe):
         }
         response = requests.post(url, json=data)
         if not response.ok:
-            raise ApiError(f'Error posting transaction: {response.content}')
+            raise ApiError(f'Error posting transaction: {response.text}')
+
+    def post_signature(self, safe_tx: SafeTx, signature: bytes):
+        """
+        Submit a signature to a transaction service.
+        """
+        url = urljoin(self.base_url, f'/multisig-transactions/{safe_tx.safe_tx_hash.hex()}/confirmations/')
+        data = {'signature': HexBytes(signature).hex()}
+        response = requests.post(url, json=data)
+        print(response.text)
+        if not response.ok:
+            raise ApiError(f'Error posting signature: {response.text}')
 
     def estimate_gas(self, safe_tx: SafeTx) -> int:
         """
