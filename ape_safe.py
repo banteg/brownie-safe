@@ -184,10 +184,9 @@ class ApeSafe(Safe):
         """
         Submit a signature to a transaction service.
         """
-        url = urljoin(self.base_url, f'/multisig-transactions/{safe_tx.safe_tx_hash.hex()}/confirmations/')
+        url = urljoin(self.base_url, f'/api/v1/multisig-transactions/{safe_tx.safe_tx_hash.hex()}/confirmations/')
         data = {'signature': HexBytes(signature).hex()}
         response = requests.post(url, json=data)
-        print(response.text)
         if not response.ok:
             raise ApiError(f'Error posting signature: {response.text}')
 
