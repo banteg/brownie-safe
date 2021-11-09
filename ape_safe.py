@@ -191,6 +191,38 @@ class ApeSafe(Safe):
         if not response.ok:
             raise ApiError(f'Error posting signature: {response.text}')
 
+    def transaction_from_nonce(self, nonce) -> SafeTx:
+        url = urljoin(self.base_url, f'/api/v1/safes/{self.address}/transactions/')
+        results = requests.get(url).json()['results']
+        txs = [
+            SafeTx(
+                self.ethereum_client,
+                self.address,
+                tx['to'],
+                int(tx['value']),
+                HexBytes(tx['data']),
+                tx['operation'],
+                tx['safeTxGas'],
+                tx['baseGas'],
+                int(tx['gasPrice']),
+                tx['gasToken'],
+                tx['refundReceiver'],
+                signatures=self.confirmations_to_signatures(tx['confirmations']),
+                safe_nonce=tx['nonce'],
+                safe_version=self.retrieve_version(),
+                chain_id=chain.id,
+            )
+            for tx in results
+            if tx['nonce'] == nonce
+        ]
+        return txs
+
+    def confirmations_to_signatures(self, confirmations) -> bytes:
+        sorted_confirmations = sorted(confirmations, key=lambda conf: int(conf['owner'], 16))
+        signatures = [bytes(HexBytes(conf['signature'])) for conf in sorted_confirmations]
+        print(f'{signatures=}')
+        return b''.join(signatures)
+
     def estimate_gas(self, safe_tx: SafeTx) -> int:
         """
         Estimate gas limit for successful execution.
