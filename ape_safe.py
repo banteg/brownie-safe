@@ -1,5 +1,5 @@
 from copy import copy
-from typing import Dict, List, Union
+from typing import Dict, List, Union, Optional
 from urllib.parse import urljoin
 
 import click
@@ -17,7 +17,6 @@ from gnosis.safe.multi_send import MultiSend, MultiSendOperation, MultiSendTx
 from gnosis.safe.safe_tx import SafeTx
 from gnosis.safe.signatures import signature_split, signature_to_bytes
 from hexbytes import HexBytes
-from packaging.version import Version
 
 MULTISEND_CALL_ONLY = '0x40A2aCCbd92BCA938b02010E17A5b8929b49130D'
 multisends = {
@@ -109,10 +108,7 @@ class ApeSafe(Safe):
         data = MultiSend(self.multisend, self.ethereum_client).build_tx_data(txs)
         return self.build_multisig_tx(self.multisend, 0, data, SafeOperation.DELEGATE_CALL.value, safe_nonce=safe_nonce)
 
-    def sign_transaction(self, safe_tx: SafeTx, signer: Union[LocalAccount, str] = None) -> SafeTx:
-        """
-        Sign a Safe transaction with a local Brownie account.
-        """
+    def get_signer(self, signer: Optional[Union[LocalAccount, str]] = None) -> LocalAccount:
         if signer is None:
             signer = click.prompt('signer', type=click.Choice(accounts.load()))
         
@@ -121,6 +117,14 @@ class ApeSafe(Safe):
             accounts.clear()
             signer = accounts.load(signer)
         
+        assert isinstance(signer, LocalAccount), 'Signer must be a name of brownie account or LocalAccount'
+        return signer
+
+    def sign_transaction(self, safe_tx: SafeTx, signer=None) -> SafeTx:
+        """
+        Sign a Safe transaction with a private key account.
+        """
+        signer = self.get_signer(signer)
         return safe_tx.sign(signer.private_key)
 
     def sign_with_frame(self, safe_tx: SafeTx, frame_rpc="http://127.0.0.1:1248") -> bytes:
@@ -250,21 +254,10 @@ class ApeSafe(Safe):
         # Signautres are encoded as [bytes32 r, bytes32 s, bytes8 v]
         # Pre-validated signatures are encoded as r=owner, s unused and v=1.
         # https://docs.gnosis.io/safe/docs/contracts_signatures/#pre-validated-signatures
-        signatures = b''.join([encode_abi(['address', 'uint'], [str(owner), 0]) + b'\x01' for owner in owners[:threshold]])
-        args = [
-            tx.to,
-            tx.value,
-            tx.data,
-            tx.operation,
-            tx.safe_tx_gas,
-            tx.base_gas,
-            tx.gas_price,
-            tx.gas_token,
-            tx.refund_receiver,
-            signatures,
-        ]
-
-        receipt = safe.execTransaction(*args, {'from': owners[0], 'gas_price': 0, 'gas_limit': gas_limit})
+        tx.signatures = b''.join([encode_abi(['address', 'uint'], [str(owner), 0]) + b'\x01' for owner in owners[:threshold]])
+        tx = safe_tx.w3_tx.buildTransaction()
+        receipt = owners[0].transfer(tx['to'], tx['value'], gas_limit=tx['gas'], data=tx['data'])
+        
         if 'ExecutionSuccess' not in receipt.events:
             receipt.info()
             receipt.call_trace(True)
@@ -281,6 +274,15 @@ class ApeSafe(Safe):
         refunded_gas = 15_000 * (threshold - 1)
         click.secho(f'recommended gas limit: {receipt.gas_used + refunded_gas}', fg='green', bold=True)
 
+        return receipt
+
+    def execute_transaction(self, safe_tx: SafeTx, signer=None) -> TransactionReceipt:
+        """
+        Execute a fully signed transaction likely retrieved from the pending_transactions method.
+        """
+        tx = safe_tx.w3_tx.buildTransaction()
+        signer = self.get_signer(signer)
+        receipt = signer.transfer(tx['to'], tx['value'], gas_limit=tx['gas'], data=tx['data'])
         return receipt
 
     def preview_pending(self, events=True, call_trace=False):
