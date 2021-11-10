@@ -128,7 +128,7 @@ class ApeSafe(Safe):
         Sign a Safe transaction using Frame. Use this option with hardware wallets.
         """
         # Requesting accounts triggers a connection prompt
-        frame = Web3(Web3.HTTPProvider(frame_rpc))
+        frame = Web3(Web3.HTTPProvider(frame_rpc, {'timeout': 600}))
         account = frame.eth.accounts[0]
         signature = frame.manager.request_blocking('eth_signTypedData_v4', [account, safe_tx.eip712_structured_data])
         # Convert to a format expected by Gnosis Safe
@@ -150,7 +150,7 @@ class ApeSafe(Safe):
     def post_transaction(self, safe_tx: SafeTx):
         """
         Submit a Safe transaction to a transaction service.
-        Estimates gas cost and prompts for a signature if needed.
+        Prompts for a signature if needed.
 
         See also https://github.com/gnosis/safe-cli/blob/master/safe_cli/api/gnosis_transaction.py
         """
@@ -182,44 +182,46 @@ class ApeSafe(Safe):
 
     def post_signature(self, safe_tx: SafeTx, signature: bytes):
         """
-        Submit a signature to a transaction service.
+        Submit a confirmation signature to a transaction service.
         """
         url = urljoin(self.base_url, f'/api/v1/multisig-transactions/{safe_tx.safe_tx_hash.hex()}/confirmations/')
-        data = {'signature': HexBytes(signature).hex()}
-        response = requests.post(url, json=data)
+        response = requests.post(url, json={'signature': HexBytes(signature).hex()})
         if not response.ok:
             raise ApiError(f'Error posting signature: {response.text}')
 
-    def transaction_from_nonce(self, nonce) -> SafeTx:
+    @property
+    def pending_transactions(self) -> List[SafeTx]:
+        """
+        Retrieve pending transactions from the transaction service.
+        """
         url = urljoin(self.base_url, f'/api/v1/safes/{self.address}/transactions/')
         results = requests.get(url).json()['results']
-        txs = [
-            SafeTx(
-                self.ethereum_client,
-                self.address,
-                tx['to'],
-                int(tx['value']),
-                HexBytes(tx['data']),
-                tx['operation'],
-                tx['safeTxGas'],
-                tx['baseGas'],
-                int(tx['gasPrice']),
-                tx['gasToken'],
-                tx['refundReceiver'],
+        nonce = self.retrieve_nonce()
+        transactions = [
+            self.build_multisig_tx(
+                to=tx['to'],
+                value=int(tx['value']),
+                data=HexBytes(tx['data']),
+                operation=tx['operation'],
+                safe_tx_gas=tx['safeTxGas'],
+                base_gas=tx['baseGas'],
+                gas_price=int(tx['gasPrice']),
+                gas_token=tx['gasToken'],
+                refund_receiver=tx['refundReceiver'],
                 signatures=self.confirmations_to_signatures(tx['confirmations']),
                 safe_nonce=tx['nonce'],
-                safe_version=self.retrieve_version(),
-                chain_id=chain.id,
             )
-            for tx in results
-            if tx['nonce'] == nonce
+            for tx in reversed(results)
+            if tx['nonce'] >= nonce and not tx['isExecuted']
         ]
-        return txs
+        return transactions
 
-    def confirmations_to_signatures(self, confirmations) -> bytes:
+    def confirmations_to_signatures(self, confirmations: List[Dict]) -> bytes:
+        """
+        Convert confirmations as returned by the transaction service to combined signatures.
+        """
         sorted_confirmations = sorted(confirmations, key=lambda conf: int(conf['owner'], 16))
         signatures = [bytes(HexBytes(conf['signature'])) for conf in sorted_confirmations]
-        print(f'{signatures=}')
         return b''.join(signatures)
 
     def estimate_gas(self, safe_tx: SafeTx) -> int:
@@ -285,11 +287,5 @@ class ApeSafe(Safe):
         """
         Dry run all pending transactions in a forked environment.
         """
-        safe = Contract.from_abi('Gnosis Safe', self.address, self.get_contract().abi)
-        url = urljoin(self.base_url, f'/api/v1/safes/{self.address}/transactions/')
-        txs = requests.get(url).json()['results']
-        nonce = safe.nonce()
-        pending = [tx for tx in reversed(txs) if not tx['isExecuted'] and tx['nonce'] >= nonce]
-        for tx in pending:
-            safe_tx = self.build_multisig_tx(tx['to'], int(tx['value']), tx['data'] or b'', operation=tx['operation'], safe_nonce=tx['nonce'])
+        for safe_tx in self.pending_transactions:
             self.preview(safe_tx, events=events, call_trace=call_trace, reset=False)
