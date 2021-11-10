@@ -37,16 +37,16 @@ Play around the same way you would do with a normal account:
     >>> vault = safe.contract('0xFe39Ce91437C76178665D64d7a2694B0f6f17fE3')
 
     # Work our way towards having a vault balance
-    >>> dai_amount = dai.balanceOf(safe.account)
+    >>> dai_amount = dai.balanceOf(safe)
     >>> dai.approve(zap, dai_amount)
     >>> amounts = [0, dai_amount, 0, 0]
     >>> mint_amount = zap.calc_token_amount(amounts, True)
     >>> zap.add_liquidity(amounts, mint_amount * 0.99)
     >>> lp.approve(vault, 2 ** 256 - 1)
     >>> vault.depositAll()
-    >>> vault.balanceOf(safe.account)
+    >>> vault.balanceOf(safe)
     2609.5479641693646
-    
+
     # Combine transaction history into a multisend transaction
     >>> safe_tx = safe.multisend_from_receipts()
 
@@ -58,12 +58,24 @@ Play around the same way you would do with a normal account:
     # including a detailed call trace, courtesy of Brownie
     >>> safe.preview(safe_tx, call_trace=True)
 
-    # Sign a transaction
-    >>> signed_tx = safe.sign_transaction(safe_tx)
-
     # Post it to the transaction service
     # Prompts for a signature if needed
     >>> safe.post_transaction(safe_tx)
 
-    # You can also preview side effects of pending transactions
+    # Post an additional confirmation to the transaction service
+    >>> signtature = safe.sign_transaction(safe_tx)
+    >>> safe.post_signature(safe_tx, signature)
+
+    # Retrieve pending transactions from the transaction service
+    >>> safe.pending_transactions
+    
+    # Preview the side effects of all pending transactions
     >>> safe.preview_pending()
+
+    # Execute the transactions with enough signatures
+    >>> network.priority_fee('2 gwei')
+    >>> signer = safe.get_signer('ape')
+    >>>
+    >>> for tx in safe.pending_transactions:
+    >>>     receipt = safe.execute_transaction(safe_tx, signer)
+    >>>     receipt.info()
