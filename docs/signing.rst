@@ -1,12 +1,18 @@
 Signing
 =======
 
-Several options for signing transactions are available in ApeSafe, including support for hardware wallets.
+Several options for signing transactions are available in Ape Safe, including support for hardware wallets.
+
+Signatures are required, Gnosis `transaction service`_ will only accept a transaction with an owner signature or from `a delegate`_.
 
 Local accounts
 --------------
 
-Import a private key or a keystore into Brownie to use it with ApeSafe. Brownie accounts are encrypted as .json keystore at rest. See `Account management`_ section of the Brownie docs for details.
+This is the default signing method when you send a transaction.
+
+Import a private key or a keystore into Brownie to use it with Ape Safe.
+Brownie accounts are encrypted at rest as .json keystores.
+See also Brownie's `Account management`_ documentation.
 
 .. code-block:: bash
 
@@ -15,15 +21,18 @@ Import a private key or a keystore into Brownie to use it with ApeSafe. Brownie 
     Enter the private key you wish to add:
 
     # Import a .json keystore
-    brownie accounts import ape keystore.json
+    $ brownie accounts import ape keystore.json
 
-Gnosis Safe API won't accept a transaction without signatures unless you are `a delegate`_. Local account is the default signing option when you send a transaction. ApeSafe will prompt you for an account and Brownie will prompt you for a password.
-
-You can also explicitly sign a transaction with a specific account to skip the first prompt:
+Ape Safe will prompt you for an account (unless supplied as an argument) and Brownie will prompt you for a password.
 
 .. code-block:: python
 
+    >>> safe.sign_transaction(safe_tx)
+    signer (ape, safe): ape
+    Enter password for "ape":
+    
     >>> safe.sign_transaction(safe_tx, 'ape')
+    Enter password for "ape":
 
 If you prefer to manage accounts outside Brownie, e.g. use a seed phrase, you can pass a ``LocalAccount`` instance:
 
@@ -36,18 +45,19 @@ If you prefer to manage accounts outside Brownie, e.g. use a seed phrase, you ca
 Frame
 -----
 
-If you wish to use a hardware wallet, your best option is Frame_. It supports all Ledger, Trezor, and Grid+ models. You can also use with with keystore accounts called Ring Signers in Frame.
+If you wish to use a hardware wallet, your best option is Frame_. It supports Ledger, Trezor, and Lattice. You can also use with with keystore accounts, they are called Ring Signers in Frame.
 
-To sign a transaction using Frame, select an account in Frame and do this:
+To sign, select an account in Frame and do this:
 
 .. code-block:: python
 
     >>> safe.sign_with_frame(safe_tx)
 
 
-Frame exposes an RPC connection at ``http://127.0.0.1:1248`` and exposes the currently selected account as ``eth_accounts[0]``. ApeSafe sends the payload as ``eth_signTypedData_v4``.
+Frame exposes an RPC connection at ``http://127.0.0.1:1248`` and exposes the currently selected account as ``eth_accounts[0]``. Ape Safe sends the payload as ``eth_signTypedData_v4``, which must be supported by your signer device.
 
 
+.. _`transaction service`: https://safe-transaction.gnosis.io/
+.. _`a delegate`: https://safe-transaction.gnosis.io/
 .. _Account management: https://eth-brownie.readthedocs.io/en/latest/account-management.html
 .. _Frame: https://frame.sh/
-.. _`a delegate`: https://safe-transaction.gnosis.io/
