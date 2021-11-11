@@ -205,7 +205,7 @@ class ApeSafe(Safe):
             self.build_multisig_tx(
                 to=tx['to'],
                 value=int(tx['value']),
-                data=HexBytes(tx['data']),
+                data=HexBytes(tx['data'] or b''),
                 operation=tx['operation'],
                 safe_tx_gas=tx['safeTxGas'],
                 base_gas=tx['baseGas'],
