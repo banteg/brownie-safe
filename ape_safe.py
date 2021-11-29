@@ -3,6 +3,7 @@ from typing import Dict, List, Union, Optional
 from urllib.parse import urljoin
 
 import click
+import os
 import requests
 from web3 import Web3  # don't move below brownie import
 from brownie import Contract, accounts, chain, history, web3
@@ -17,6 +18,10 @@ from gnosis.safe.multi_send import MultiSend, MultiSendOperation, MultiSendTx
 from gnosis.safe.safe_tx import SafeTx
 from gnosis.safe.signatures import signature_split, signature_to_bytes
 from hexbytes import HexBytes
+from trezorlib import tools, ui, ethereum
+from trezorlib.client import TrezorClient
+from trezorlib.messages import EthereumSignMessage
+from trezorlib.transport import get_transport
 
 MULTISEND_CALL_ONLY = '0x40A2aCCbd92BCA938b02010E17A5b8929b49130D'
 multisends = {
@@ -126,6 +131,47 @@ class ApeSafe(Safe):
         """
         signer = self.get_signer(signer)
         return safe_tx.sign(signer.private_key)
+
+    def sign_with_trezor(self, safe_tx: SafeTx, derivation_path="m/44'/60'/0'/0/0", use_passphrase=False):
+        """
+        Sign a Safe transaction with a Trezor wallet.
+
+        Creates an eth_sign signature since Trezor EIP-712 isn't available yet as of TT fw v2.4.2, T1 fw v1.10.3
+
+        Defaults to no passphrase (and skips passphrase prompt) by default.
+        Uses on-device passphrase input if `use_passphrase` is truthy
+        """
+        path = tools.parse_path(derivation_path)
+        transport = get_transport()
+        # if not using passphrase, then set env var so that prompt is skipped
+        if not use_passphrase:
+            os.environ["PASSPHRASE"] = ""
+        # default to on-device passphrase input if `use_passphrase` is truthy
+        client = TrezorClient(transport=transport, ui=ui.ClickUI(passphrase_on_host=not use_passphrase))
+        account = ethereum.get_address(client, path)
+
+        # have to use this instead of trezorlib.ethereum.sign_message
+        # because that takes a string instead of bytes
+        trez_sig = client.call(
+            EthereumSignMessage(
+                address_n=path,
+                message=safe_tx.safe_tx_hash
+            )
+        )
+
+        v, r, s = signature_split(trez_sig.signature)
+        # Gnosis adds 4 to `v` to denote an eth_sign signature
+        v += 4
+        signature = signature_to_bytes(v, r, s)
+        if account not in safe_tx.signers:
+            new_owners = safe_tx.signers + [account]
+            new_owner_pos = sorted(new_owners, key=lambda x: int(x, 16)).index(account)
+            safe_tx.signatures = (
+                safe_tx.signatures[: 65 * new_owner_pos]
+                + signature
+                + safe_tx.signatures[65 * new_owner_pos :]
+            )
+        return signature
 
     def sign_with_frame(self, safe_tx: SafeTx, frame_rpc="http://127.0.0.1:1248") -> bytes:
         """

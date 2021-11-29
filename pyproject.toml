@@ -11,6 +11,7 @@ readme = "readme.md"
 python = "^3.8"
 eth-brownie = "^1.17.0"
 gnosis-py = "^3.6.0"
+trezor = "^0.12.4"
 
 [tool.poetry.dev-dependencies]
 
