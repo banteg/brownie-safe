@@ -331,13 +331,12 @@ class ApeSafe(Safe):
         # Requesting accounts triggers a connection prompt
         frame = Web3(Web3.HTTPProvider(frame_rpc, {'timeout': 600}))
         account = frame.eth.accounts[0]
-        executor = accounts.at(account, force=True)
         payload = safe_tx.w3_tx.buildTransaction()
         tx = {
             "from": account,
             "to": self.address,
             "value": payload["value"],
-            "nonce": executor.nonce,
+            "nonce": frame.eth.get_transaction_count(account),
             "gas": web3.toHex(payload["gas"]),
             "data": HexBytes(payload["data"]),
         }
