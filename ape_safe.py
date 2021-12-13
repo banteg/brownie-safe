@@ -324,6 +324,24 @@ class ApeSafe(Safe):
         receipt = signer.transfer(payload['to'], payload['value'], gas_limit=payload['gas'], data=payload['data'])
         return receipt
 
+    def execute_transaction_with_frame(self, safe_tx: SafeTx, frame_rpc="http://127.0.0.1:1248") -> bytes:
+        """
+        Execute a fully signed transaction with frame. Use this option with hardware wallets.
+        """
+        # Requesting accounts triggers a connection prompt
+        frame = Web3(Web3.HTTPProvider(frame_rpc, {'timeout': 600}))
+        account = frame.eth.accounts[0]
+        payload = safe_tx.w3_tx.buildTransaction()
+        tx = {
+            "from": account,
+            "to": self.address,
+            "value": payload["value"],
+            "nonce": frame.eth.get_transaction_count(account),
+            "gas": web3.toHex(payload["gas"]),
+            "data": HexBytes(payload["data"]),
+        }
+        frame.eth.send_transaction(tx)
+
     def preview_pending(self, events=True, call_trace=False):
         """
         Dry run all pending transactions in a forked environment.
