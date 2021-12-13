@@ -336,10 +336,10 @@ class ApeSafe(Safe):
         tx = {
             "from": account,
             "to": self.address,
-            "value": safe_tx.value,
+            "value": payload["value"],
             "nonce": executor.nonce,
             "gas": web3.toHex(payload["gas"]),
-            "data": HexBytes(safe_tx.data),
+            "data": HexBytes(payload["data"]),
         }
         frame.eth.send_transaction(tx)
 
