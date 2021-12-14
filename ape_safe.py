@@ -132,7 +132,7 @@ class ApeSafe(Safe):
         signer = self.get_signer(signer)
         return safe_tx.sign(signer.private_key)
 
-    def sign_with_trezor(self, safe_tx: SafeTx, derivation_path="m/44'/60'/0'/0/0", use_passphrase=False, force_eth_sign=False):
+    def sign_with_trezor(self, safe_tx: SafeTx, derivation_path: str = "m/44'/60'/0'/0/0", use_passphrase: bool = False, force_eth_sign: bool = False) -> bytes:
         """
         Sign a Safe transaction with a Trezor wallet.
 
