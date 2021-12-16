@@ -132,14 +132,17 @@ class ApeSafe(Safe):
         signer = self.get_signer(signer)
         return safe_tx.sign(signer.private_key)
 
-    def sign_with_trezor(self, safe_tx: SafeTx, derivation_path="m/44'/60'/0'/0/0", use_passphrase=False):
+    def sign_with_trezor(self, safe_tx: SafeTx, derivation_path: str = "m/44'/60'/0'/0/0", use_passphrase: bool = False, force_eth_sign: bool = False) -> bytes:
         """
         Sign a Safe transaction with a Trezor wallet.
 
-        Creates an eth_sign signature since Trezor EIP-712 isn't available yet as of TT fw v2.4.2, T1 fw v1.10.3
-
         Defaults to no passphrase (and skips passphrase prompt) by default.
         Uses on-device passphrase input if `use_passphrase` is truthy
+
+        Defaults to EIP-712 signatures on wallets & fw revisions that support it:
+        - TT fw >v2.4.3 (clear signing only)
+        - T1: not yet, and maybe only blind signing
+        Otherwise (or if `force_eth_sign` is truthy), use eth_sign instead
         """
         path = tools.parse_path(derivation_path)
         transport = get_transport()
@@ -150,18 +153,29 @@ class ApeSafe(Safe):
         client = TrezorClient(transport=transport, ui=ui.ClickUI(passphrase_on_host=not use_passphrase))
         account = ethereum.get_address(client, path)
 
-        # have to use this instead of trezorlib.ethereum.sign_message
-        # because that takes a string instead of bytes
-        trez_sig = client.call(
-            EthereumSignMessage(
-                address_n=path,
-                message=safe_tx.safe_tx_hash
-            )
-        )
+        if force_eth_sign:
+            use_eip712 = False
+        elif client.features.model == 'T': # Trezor T
+            use_eip712 = (client.features.major_version, client.features.minor_version, client.features.patch_version) >= (2, 4, 3) # fw ver >= 2.4.3
+        else:
+            use_eip712 = False
 
-        v, r, s = signature_split(trez_sig.signature)
-        # Gnosis adds 4 to `v` to denote an eth_sign signature
-        v += 4
+        if use_eip712:
+            trez_sig = ethereum.sign_typed_data(client, path, safe_tx.eip712_structured_data)
+            v, r, s = signature_split(trez_sig.signature)
+        else:
+            # have to use this instead of trezorlib.ethereum.sign_message
+            # because that takes a string instead of bytes
+            trez_sig = client.call(
+                EthereumSignMessage(
+                    address_n=path,
+                    message=safe_tx.safe_tx_hash
+                )
+            )
+            v, r, s = signature_split(trez_sig.signature)
+            # Gnosis adds 4 to `v` to denote an eth_sign signature
+            v += 4
+
         signature = signature_to_bytes(v, r, s)
         if account not in safe_tx.signers:
             new_owners = safe_tx.signers + [account]
