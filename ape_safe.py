@@ -26,6 +26,7 @@ from trezorlib.transport import get_transport
 MULTISEND_CALL_ONLY = '0x40A2aCCbd92BCA938b02010E17A5b8929b49130D'
 multisends = {
     250: '0x10B62CC1E8D9a9f1Ad05BCC491A7984697c19f7E',
+    43114: '0x998739BFdAAdde7C933B942a68053933098f9EDa'
 }
 transaction_service = {
     1: 'https://safe-transaction.mainnet.gnosis.io',
@@ -37,6 +38,7 @@ transaction_service = {
     250: 'https://safe.fantom.network',
     246: 'https://safe-transaction.ewc.gnosis.io',
     42161: 'https://safe-transaction.arbitrum.gnosis.io',
+    43114: 'https://safe-transaction.avalanche.gnosis.io',
     73799: 'https://safe-transaction.volta.gnosis.io',
 }
 
@@ -96,7 +98,7 @@ class ApeSafe(Safe):
         """
         if safe_nonce is None:
             safe_nonce = self.pending_nonce()
-        
+
         return self.build_multisig_tx(receipt.receiver, receipt.value, receipt.input, operation=operation.value, safe_nonce=safe_nonce)
 
     def multisend_from_receipts(self, receipts: List[TransactionReceipt] = None, safe_nonce: int = None) -> SafeTx:
@@ -105,10 +107,10 @@ class ApeSafe(Safe):
         """
         if receipts is None:
             receipts = history.from_sender(self.address)
-        
+
         if safe_nonce is None:
             safe_nonce = self.pending_nonce()
-        
+
         txs = [MultiSendTx(MultiSendOperation.CALL, tx.receiver, tx.value, tx.input) for tx in receipts]
         data = MultiSend(self.multisend, self.ethereum_client).build_tx_data(txs)
         return self.build_multisig_tx(self.multisend, 0, data, SafeOperation.DELEGATE_CALL.value, safe_nonce=safe_nonce)
@@ -116,12 +118,12 @@ class ApeSafe(Safe):
     def get_signer(self, signer: Optional[Union[LocalAccount, str]] = None) -> LocalAccount:
         if signer is None:
             signer = click.prompt('signer', type=click.Choice(accounts.load()))
-        
+
         if isinstance(signer, str):
             # Avoids a previously impersonated account with no signing capabilities
             accounts.clear()
             signer = accounts.load(signer)
-        
+
         assert isinstance(signer, LocalAccount), 'Signer must be a name of brownie account or LocalAccount'
         return signer
 
@@ -220,7 +222,7 @@ class ApeSafe(Safe):
         """
         if not safe_tx.sorted_signers:
             self.sign_transaction(safe_tx)
-        
+
         sender = safe_tx.sorted_signers[0]
 
         url = urljoin(self.base_url, f'/api/v1/safes/{self.address}/multisig-transactions/')
@@ -318,7 +320,7 @@ class ApeSafe(Safe):
         tx.signatures = b''.join([encode_abi(['address', 'uint'], [str(owner), 0]) + b'\x01' for owner in owners])
         payload = tx.w3_tx.buildTransaction()
         receipt = owners[0].transfer(payload['to'], payload['value'], gas_limit=payload['gas'], data=payload['data'])
-        
+
         if 'ExecutionSuccess' not in receipt.events:
             receipt.info()
             receipt.call_trace(True)
