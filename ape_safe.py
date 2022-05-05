@@ -80,8 +80,7 @@ class ApeSafe(Safe):
         """
         Instantiate a Brownie Contract owned by Safe account.
         """
-        if not web3.isChecksumAddress(address):
-            address = web3.ens.resolve(address)
+        address = to_checksum_address(address) if is_address(address) else web3.ens.resolve(address)
         return Contract(address, owner=self.account)
 
     def pending_nonce(self) -> int:
