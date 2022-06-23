@@ -36,7 +36,7 @@ transaction_service = {
     56: 'https://safe-transaction.bsc.gnosis.io',
     100: 'https://safe-transaction.xdai.gnosis.io',
     137: 'https://safe-transaction.polygon.gnosis.io',
-    250: 'https://safe.fantom.network',
+    250: 'https://safe-txservice.fantom.network',
     246: 'https://safe-transaction.ewc.gnosis.io',
     288: 'https://safe-transaction.mainnet.boba.network',
     42161: 'https://safe-transaction.arbitrum.gnosis.io',
