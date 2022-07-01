@@ -374,42 +374,26 @@ class ApeSafe(Safe):
         for safe_tx in self.pending_transactions:
             self.preview_tx(safe_tx, events=events, call_trace=call_trace)
 
+    @staticmethod
     def get_safe_txhash_from_execution_tx(tx: Union[str,TransactionReceipt]) -> str:
         """
         Get safe txhash from execution tx.
         """
-        return get_safe_txhash_from_execution_tx(tx)
+        if type(tx) == str:
+            tx = chain.get_transaction(tx)
+        return tx.events['ExecutionSuccess']['txHash']
 
+    @staticmethod
     def get_safe_nonce_from_execution_tx(tx: Union[str,TransactionReceipt]) -> int:
         """
         Get safe nonce from execution tx.
         """
-        return get_safe_nonce_from_execution_tx(tx)
+        safe_txhash = ApeSafe.get_safe_txhash_from_execution_tx(tx)
+        return ApeSafe.get_safe_nonce_from_safe_tx(safe_txhash)
 
+    @staticmethod
     def get_safe_nonce_from_safe_tx(safe_txhash: str) -> int:
         """
         Get safe nonce from safe txhash.
         """
-        return get_safe_nonce_from_safe_tx(safe_txhash)
-
-
-def get_safe_txhash_from_execution_tx(tx: Union[str,TransactionReceipt]) -> str:
-    """
-    Get safe txhash from execution tx.
-    """
-    if type(tx) == str:
-        tx = chain.get_transaction(tx)
-    return tx.events['ExecutionSuccess']['txHash']
-
-def get_safe_nonce_from_execution_tx(tx: Union[str,TransactionReceipt]) -> int:
-    """
-    Get safe nonce from execution tx.
-    """
-    safe_txhash = get_safe_txhash_from_execution_tx(tx)
-    return get_safe_nonce_from_safe_tx(safe_txhash)
-
-def get_safe_nonce_from_safe_tx(safe_txhash: str) -> int:
-    """
-    Get safe nonce from safe txhash.
-    """
-    return requests.get(f"{transaction_service[chain.id]}/api/v1/multisig-transactions/{safe_txhash}").json()['nonce']
+        return requests.get(f"{transaction_service[chain.id]}/api/v1/multisig-transactions/{safe_txhash}").json()['nonce']
