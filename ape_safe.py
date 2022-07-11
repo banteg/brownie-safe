@@ -379,7 +379,7 @@ class ApeSafe(Safe):
         """
         Get safe txhash from execution tx.
         """
-        if type(tx) == str:
+        if isinstance(tx, str):
             tx = chain.get_transaction(tx)
         return tx.events['ExecutionSuccess']['txHash']
 
