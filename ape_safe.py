@@ -25,6 +25,7 @@ from trezorlib.transport import get_transport
 
 MULTISEND_CALL_ONLY = '0x40A2aCCbd92BCA938b02010E17A5b8929b49130D'
 multisends = {
+    10: '0x998739BFdAAdde7C933B942a68053933098f9EDa',
     250: '0x10B62CC1E8D9a9f1Ad05BCC491A7984697c19f7E',
     288: '0x2Bd65cd56cAAC777f87d7808d13DEAF88e54E0eA',
     43114: '0x998739BFdAAdde7C933B942a68053933098f9EDa'
@@ -33,6 +34,7 @@ transaction_service = {
     1: 'https://safe-transaction.mainnet.gnosis.io',
     4: 'https://safe-transaction.rinkeby.gnosis.io',
     5: 'https://safe-transaction.goerli.gnosis.io',
+    10: 'https://safe-transaction.optimism.gnosis.io/',
     56: 'https://safe-transaction.bsc.gnosis.io',
     100: 'https://safe-transaction.xdai.gnosis.io',
     137: 'https://safe-transaction.polygon.gnosis.io',
