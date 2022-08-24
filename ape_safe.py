@@ -299,7 +299,7 @@ class ApeSafe(Safe):
         """
         return self.estimate_tx_gas(safe_tx.to, safe_tx.value, safe_tx.data, safe_tx.operation)
 
-    def preview(self, safe_tx: SafeTx, events=True, call_trace=False, reset=True):
+    def preview(self, safe_tx: SafeTx, events=True, call_trace=False, reset=True, use_block_gas_limit=False):
         """
         Dry run a Safe transaction in a forked network environment.
         """
@@ -321,7 +321,12 @@ class ApeSafe(Safe):
         # Pre-validated signatures are encoded as r=owner, s unused and v=1.
         # https://docs.gnosis.io/safe/docs/contracts_signatures/#pre-validated-signatures
         tx.signatures = b''.join([encode_abi(['address', 'uint'], [str(owner), 0]) + b'\x01' for owner in owners])
-        payload = tx.w3_tx.buildTransaction()
+
+        tx_param = None
+        if use_block_gas_limit:
+            tx_param = {'gas': str(chain.block_gas_limit)}
+
+        payload = tx.w3_tx.buildTransaction(tx_param)
         receipt = owners[0].transfer(payload['to'], payload['value'], gas_limit=payload['gas'], data=payload['data'])
 
         if 'ExecutionSuccess' not in receipt.events:
