@@ -299,12 +299,7 @@ class ApeSafe(Safe):
         """
         return self.estimate_tx_gas(safe_tx.to, safe_tx.value, safe_tx.data, safe_tx.operation)
 
-    def preview(self, safe_tx: SafeTx, events=True, call_trace=False, reset=True):
-        """
-        Dry run a Safe transaction in a forked network environment.
-        """
-        if reset:
-            chain.reset()
+    def preview_tx(self, safe_tx: SafeTx, events=True, call_trace=False) -> TransactionReceipt:
         tx = copy(safe_tx)
         safe = Contract.from_abi('Gnosis Safe', self.address, self.get_contract().abi)
         # Replace pending nonce with the subsequent nonce, this could change the safe_tx_hash
@@ -328,11 +323,22 @@ class ApeSafe(Safe):
             receipt.info()
             receipt.call_trace(True)
             raise ExecutionFailure()
+
         if events:
             receipt.info()
         if call_trace:
             receipt.call_trace(True)
         return receipt
+
+    def preview(self, safe_tx: SafeTx, events=True, call_trace=False, reset=True, include_pending=False):
+        """
+        Dry run a Safe transaction in a forked network environment.
+        """
+        if reset:
+            chain.reset()
+        if include_pending:
+            self.preview_pending(events=events, call_trace=call_trace)
+        return self.preview_tx(safe_tx, events=events, call_trace=call_trace)
 
     def execute_transaction(self, safe_tx: SafeTx, signer=None) -> TransactionReceipt:
         """
@@ -366,4 +372,4 @@ class ApeSafe(Safe):
         Dry run all pending transactions in a forked environment.
         """
         for safe_tx in self.pending_transactions:
-            self.preview(safe_tx, events=events, call_trace=call_trace, reset=False)
+            self.preview_tx(safe_tx, events=events, call_trace=call_trace)
