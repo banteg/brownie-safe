@@ -4,3 +4,4 @@ poetry.lock
 .hypothesis/
 cache/
 build/
+env/
