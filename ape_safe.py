@@ -80,12 +80,14 @@ class ApeSafe(Safe):
         """
         return accounts.at(self.address, force=True)
 
-    def contract(self, address) -> Contract:
+    def contract(self, address=None) -> Contract:
         """
         Instantiate a Brownie Contract owned by Safe account.
         """
-        address = to_checksum_address(address) if is_address(address) else web3.ens.resolve(address)
-        return Contract(address, owner=self.account)
+        if address:
+            address = to_checksum_address(address) if is_address(address) else web3.ens.resolve(address)
+            return Contract(address, owner=self.account)
+        return Safe.contract if hasattr(Safe, 'contract') else Safe.get_contract
 
     def pending_nonce(self) -> int:
         """
@@ -301,7 +303,7 @@ class ApeSafe(Safe):
 
     def preview_tx(self, safe_tx: SafeTx, events=True, call_trace=False) -> TransactionReceipt:
         tx = copy(safe_tx)
-        safe = Contract.from_abi('Gnosis Safe', self.address, self.get_contract().abi)
+        safe = Contract.from_abi('Gnosis Safe', self.address, self.contract.abi)
         # Replace pending nonce with the subsequent nonce, this could change the safe_tx_hash
         tx.safe_nonce = safe.nonce()
         # Forge signatures from the needed amount of owners, skip the one which submits the tx
