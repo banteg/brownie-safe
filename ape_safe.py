@@ -115,7 +115,7 @@ class ApeSafe(Safe):
             safe_nonce = self.pending_nonce()
 
         txs = [MultiSendTx(MultiSendOperation.CALL, tx.receiver, tx.value, tx.input) for tx in receipts]
-        data = MultiSend(self.multisend, self.ethereum_client).build_tx_data(txs)
+        data = MultiSend(self.ethereum_client, self.multisend).build_tx_data(txs)
         return self.build_multisig_tx(self.multisend, 0, data, SafeOperation.DELEGATE_CALL.value, safe_nonce=safe_nonce)
 
     def get_signer(self, signer: Optional[Union[LocalAccount, str]] = None) -> LocalAccount:
