@@ -43,7 +43,7 @@ transaction_service = {
     42161: 'https://safe-transaction-arbitrum.safe.global',
     43114: 'https://safe-transaction-avalanche.safe.global',
     73799: 'https://safe-transaction-volta.safe.global',
-    1313161554: 'https://safe-transaction-aurora.safe.global/',
+    1313161554: 'https://safe-transaction-aurora.safe.global',
 }
 
 
