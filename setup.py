@@ -57,6 +57,11 @@ setup(
         "eth-ape>=0.6.0,<0.7.0",
         "eip712>=0.1.5,<0.2.0",
     ],
+    entry_points={
+        "ape_cli_subcommands": [
+            "ape_safe=ape_safe._cli:cli",
+        ],
+    },
     python_requires=">=3.8,<4",
     extras_require=extras_require,
     py_modules=["ape_safe"],
