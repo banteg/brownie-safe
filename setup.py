@@ -55,7 +55,7 @@ setup(
     include_package_data=True,
     install_requires=[
         "eth-ape>=0.6.0,<0.7.0",
-        "eip712>=0.2.0,<0.3.0",
+        "eip712>=0.1.5,<0.2.0",
     ],
     python_requires=">=3.8,<4",
     extras_require=extras_require,
