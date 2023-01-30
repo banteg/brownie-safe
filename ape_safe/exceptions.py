@@ -49,3 +49,17 @@ SAFE_ERROR_CODES = {
 class SafeLogicError(ApeSafeException, ContractLogicError):
     def __init__(self, error_code: str):
         super().__init__(f"{SAFE_ERROR_CODES[error_code]} ({error_code})")
+
+
+class MulticallException(ApeSafeException):
+    pass
+
+
+class ValueRequired(MulticallException):
+    def __init__(self, amount: int):
+        super().__init__(f"This transaction must send at least '{amount / 1e18}' ether.")
+
+
+class UnsupportedChainError(MulticallException):
+    def __init__(self):
+        super().__init__("Multicall not supported on this chain.")
