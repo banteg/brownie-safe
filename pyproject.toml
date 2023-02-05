@@ -9,7 +9,7 @@ readme = "readme.md"
 
 [tool.poetry.dependencies]
 python = ">=3.8,<3.11"
-eth-brownie = "^1.19.3"
+eth-brownie = "^1.19.2"
 safe-eth-py = "^5.0.0"
 trezor = "^0.13.5"
 
