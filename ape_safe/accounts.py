@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Iterator, List, Optional, Set, Type, Union
 
 from ape.api import AccountAPI, AccountContainerAPI, ReceiptAPI, TransactionAPI
+from ape.api.address import BaseAddress
 from ape.contracts import ContractInstance
 from ape.exceptions import ContractLogicError
 from ape.logging import logger
@@ -185,6 +186,14 @@ class SafeAccount(AccountAPI):
 
             else:
                 raise e
+
+    def compute_prev_signer(self, signer: Union[str, AddressType, BaseAddress]) -> AddressType:
+        """
+        Sometimes it's handy to have "previous owner" for certain operations, this function
+        makes it easy to calculate
+        """
+        signer_address: AddressType = self.conversion_manager.convert(signer, AddressType)
+        return list(self.signers)[list(self.signers).index(signer_address) - 1]
 
     def prepare_transaction(self, txn: TransactionAPI) -> TransactionAPI:
         return self.provider.prepare_transaction(txn)
