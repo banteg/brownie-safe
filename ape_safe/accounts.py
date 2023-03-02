@@ -149,7 +149,7 @@ class SafeAccount(AccountAPI):
         # TODO: Use config to skip any local signers
         return list(
             self.account_manager[address]
-            for address in sorted(self.signers)
+            for address in self.signers
             if address in self.account_manager
         )
 
