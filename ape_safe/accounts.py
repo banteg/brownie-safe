@@ -3,7 +3,6 @@ from itertools import islice
 from pathlib import Path
 from typing import Iterator, List, Optional, Set, Type, Union
 
-import click
 from ape.api import AccountAPI, AccountContainerAPI, ReceiptAPI, TransactionAPI
 from ape.contracts import ContractInstance
 from ape.exceptions import ContractLogicError
@@ -159,9 +158,6 @@ class SafeAccount(AccountAPI):
     ) -> Iterator[MessageSignature]:
         for signer in self.local_signers:
             if skip and signer == skip:
-                continue
-
-            if not click.confirm(f"Should {signer} sign?"):
                 continue
 
             if sig := signer.sign_message(safe_tx.signable_message):  # type: ignore[arg-type]
