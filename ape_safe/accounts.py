@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Iterator, List, Optional, Set, Type, Union
 
 import click
-from ape.api.accounts import AccountAPI, AccountContainerAPI, TransactionAPI
+from ape.api import AccountAPI, AccountContainerAPI, ReceiptAPI, TransactionAPI
 from ape.contracts import ContractInstance
 from ape.exceptions import ContractLogicError
 from ape.logging import logger
@@ -183,6 +183,20 @@ class SafeAccount(AccountAPI):
                 *exec_args, encoded_signatures, **txn_options
             )
 
+        except ContractLogicError as e:
+            if e.message.startswith("GS"):
+                raise SafeLogicError(e.message) from e
+
+            else:
+                raise e
+
+    def prepare_transaction(self, txn: TransactionAPI) -> TransactionAPI:
+        return self.provider.prepare_transaction(txn)
+
+    def call(self, txn: TransactionAPI, send_everything: bool = False, **call_kwargs) -> ReceiptAPI:
+        # TODO: Handle `send_everything`?
+        try:
+            return super().call(txn, send_everything=send_everything, **call_kwargs)
         except ContractLogicError as e:
             if e.message.startswith("GS"):
                 raise SafeLogicError(e.message) from e
