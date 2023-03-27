@@ -1,7 +1,7 @@
 import json
 from itertools import islice
 from pathlib import Path
-from typing import Iterator, List, Optional, Set, Type, Union
+from typing import Iterable, Iterator, List, Optional, Set, Tuple, Type, Union
 
 from ape.api import AccountAPI, AccountContainerAPI, ReceiptAPI, TransactionAPI
 from ape.api.address import BaseAddress
@@ -12,7 +12,7 @@ from ape.types import AddressType, MessageSignature, SignableMessage
 from ape.utils import cached_property
 from ape_ethereum.transactions import TransactionType
 from eip712.common import create_safe_tx_def
-from eth_utils import to_bytes
+from eth_utils import to_bytes, to_int
 
 from .client import SafeClient, SafeTx
 from .exceptions import NotEnoughSignatures, SafeLogicError
@@ -90,12 +90,12 @@ class SafeAccount(AccountAPI):
             return self.contract.VERSION()
 
     @property
-    def signers(self) -> Set[AddressType]:
+    def signers(self) -> List[AddressType]:
         # NOTE: Signers are in order because of `Set`
         try:
-            return set(self.client.safe_details.owners)
+            return self.client.safe_details.owners
         except Exception:
-            return set(self.contract.getOwners())
+            return self.contract.getOwners()
 
     @property
     def confirmations_required(self) -> int:
@@ -146,7 +146,6 @@ class SafeAccount(AccountAPI):
 
     @property
     def local_signers(self) -> List[AccountAPI]:
-        # NOTE: Signers are ordered, this is very important
         # TODO: Use config to skip any local signers
         return list(
             self.account_manager[address]
@@ -155,14 +154,13 @@ class SafeAccount(AccountAPI):
         )
 
     def get_signatures(
-        self, safe_tx: SafeTx, skip: Optional[AccountAPI] = None
-    ) -> Iterator[MessageSignature]:
-        for signer in self.local_signers:
-            if skip and signer == skip:
-                continue
-
-            if sig := signer.sign_message(safe_tx.signable_message):  # type: ignore[arg-type]
-                yield sig
+        self,
+        safe_tx: SafeTx,
+        signers: Iterable[AccountAPI],
+    ) -> Iterator[Tuple[AddressType, MessageSignature]]:
+        for signer in signers:
+            if sig := signer.sign_message(safe_tx.signable_message):
+                yield signer.address, sig
 
     def create_execute_transaction(
         self,
@@ -171,6 +169,7 @@ class SafeAccount(AccountAPI):
         **txn_options,
     ) -> TransactionAPI:
         exec_args = list(safe_tx._body_["message"].values())[:-1]  # NOTE: Skip `nonce`
+        # TODO: Will fail because of https://github.com/ApeWorX/ape/pull/1358
         encoded_signatures = b"".join(sig.encode_rsv() for sig in signatures)
 
         # Try to catch Gnosis Safe error codes before submitting
@@ -189,19 +188,29 @@ class SafeAccount(AccountAPI):
 
     def compute_prev_signer(self, signer: Union[str, AddressType, BaseAddress]) -> AddressType:
         """
-        Sometimes it's handy to have "previous owner" for certain operations, this function
-        makes it easy to calculate
+        Sometimes it's handy to have "previous owner" for ownership change operations,
+        this function makes it easy to calculate.
         """
         signer_address: AddressType = self.conversion_manager.convert(signer, AddressType)
-        return list(self.signers)[list(self.signers).index(signer_address) - 1]
+        signers = self.contract.getOwners()  # NOTE: Use contract version to ensure correctness
+        if signer_address not in signers:
+            raise  # not a signer
+
+        index = signers.index(signer_address)
+        if index > 0:
+            return signers[index - 1]
+
+        # NOTE: SENTINEL_OWNERS is the "previous" address to index 0
+        return AddressType("0x0000000000000000000000000000000000000001")  # type: ignore[arg-type]
 
     def prepare_transaction(self, txn: TransactionAPI) -> TransactionAPI:
+        # NOTE: Need to override `AccountAPI` behavior for balance checks
         return self.provider.prepare_transaction(txn)
 
-    def call(self, txn: TransactionAPI, send_everything: bool = False, **call_kwargs) -> ReceiptAPI:
-        # TODO: Handle `send_everything`?
+    def call(self, txn: TransactionAPI, **call_kwargs) -> ReceiptAPI:  # type: ignore[override]
+        # NOTE: Override just to produce a more specific exception with better error message
         try:
-            return super().call(txn, send_everything=send_everything, **call_kwargs)
+            return super().call(txn, **call_kwargs)
         except ContractLogicError as e:
             if e.message.startswith("GS"):
                 raise SafeLogicError(e.message) from e
@@ -212,19 +221,27 @@ class SafeAccount(AccountAPI):
     def sign_transaction(
         self,
         txn: TransactionAPI,
-        submit_transaction: bool = True,
-        submitter: Union[AddressType, str, None] = None,
+        submit: bool = True,
+        submitter: Union[AccountAPI, AddressType, str, None] = None,
+        skip: Optional[List[Union[AccountAPI, AddressType, str]]] = None,
         **signer_options,
     ) -> Optional[TransactionAPI]:
+        # TODO: Docstring (override AccountAPI)
         safe_tx = self.create_safe_tx(txn, **signer_options)
 
         # Determine who is submitting the transaction (if enough signatures are gathered)
-        if not submit_transaction:
+        if not submit:
+            if submitter:
+                raise  # Cannot specify a submitter if not submitting
+
             sender = None
 
         else:
             if not submitter:
                 sender = self.local_signers[0]
+
+            elif isinstance(submitter, AccountAPI):
+                sender = submitter
 
             elif submitter in self.account_manager.aliases:
                 sender = self.account_manager.load(submitter)
@@ -240,34 +257,46 @@ class SafeAccount(AccountAPI):
 
         # Garner either M or M - 1 signatures, depending on if we are submitting
         # and whether the submitter is also a signer (both must be true to submit M - 1).
-        if (
-            sender  # NOTE: sender is None if submit_transaction is True
-            and sender.address in self.signers
-        ):
+        available_signers = iter(self.local_signers)
+        if sender and sender.address in self.signers:
+            # Sender doesn't have to sign
             signatures_required = self.confirmations_required - 1
+            available_signers = filter(lambda s: s != sender, available_signers)
 
-        else:
+        else:  # NOTE: sender is None if submit is False
+            # Not submitting, or sender isn't a signer, so we need all confirmations
             signatures_required = self.confirmations_required
 
-        # TODO: Allow specifying an order via Config
-        sigs = list(islice(self.get_signatures(safe_tx, skip=sender), signatures_required))
+        # Allow bypassing any specified signers
+        if skip:
+            skip_addresses = [self.conversion_manager.convert(a, AddressType) for a in skip]
+
+            def skip_signer(signer: AccountAPI):
+                return signer.address not in skip_addresses
+
+            available_signers = filter(skip_signer, available_signers)
+
+        # TODO: Allow re-ordering via Config
+
+        # Attempt to fetch just enough signatures to satisfy the amount we need
+        # NOTE: It is okay to have less signatures, but it never should fetch more than needed
+        sigs_by_signer = dict(
+            islice(self.get_signatures(safe_tx, available_signers), signatures_required)
+        )
+        # Invariant: len(sigs_by_signer) <= signatures_required
 
         if (
-            sender  # NOTE: sender is None if submit_transaction is True
+            sender  # NOTE: sender is None if submit_transaction is False
             # We have enough signatures to commit the transaction,
             # and a non-signer will submit it as their own transaction
-            and len(sigs) >= signatures_required
+            and len(sigs_by_signer) == signatures_required
         ):
             # We need to encode the submitter's address for Safe to decode
-            if len(sigs) < self.confirmations_required:
-                sigs.insert(
-                    # TODO: Not sure if there's a better way to do this, might be buggy
-                    self.local_signers.index(sender),
-                    MessageSignature(  # type: ignore[call-arg]
-                        v=1,
-                        r=b"\x00" * 12 + to_bytes(hexstr=sender.address),
-                        s=b"\x00" * 32,
-                    ),
+            if len(sigs_by_signer) < self.confirmations_required:
+                sigs_by_signer[sender.address] = MessageSignature(  # type: ignore[call-arg]
+                    v=1,  # Approved hash (e.g. submitter is approved)
+                    r=b"\x00" * 12 + to_bytes(hexstr=sender.address),
+                    s=b"\x00" * 32,
                 )
 
             # Inherit gas args
@@ -284,6 +313,12 @@ class SafeAccount(AccountAPI):
                 gas_args["max_fee"] = txn.max_fee
                 gas_args["max_priority_fee"] = txn.max_priority_fee
 
+            # NOTE: Must order signatures in ascending order of signer address (converted to int)
+            def addr2int(a):
+                return to_int(hexstr=a)
+
+            sigs = [sigs_by_signer[signer] for signer in sorted(sigs_by_signer, key=addr2int)]
+
             exec_transaction = self.create_execute_transaction(
                 safe_tx,
                 sigs,
@@ -292,22 +327,19 @@ class SafeAccount(AccountAPI):
             )
             return sender.sign_transaction(exec_transaction)
 
-        elif submit_transaction:
+        elif submit:
             # NOTE: User wanted to submit transaction, but we can't, so don't publish to API
-            raise NotEnoughSignatures(self.confirmations_required, len(sigs))
+            raise NotEnoughSignatures(self.confirmations_required, len(sigs_by_signer))
 
-        elif sender:
-            # Not enough signatures were gathered to submit, but signer didn't sign yet,
+        elif sender and sender.address in self.signers:
+            # Not enough signatures were gathered to submit, but signer didn't sign yet either,
             # so might as well get one more from them before publishing confirmations to API.
-            sigs.insert(
-                # TODO: Not sure if there's a better way to do this, might be buggy
-                self.local_signers.index(sender),
-                sender.sign_message(safe_tx.signable_message),  # type: ignore[arg-type]
-            )
+            if sig := sender.sign_message(safe_tx.signable_message):
+                sigs_by_signer[sender.address] = sig
 
         # NOTE: Not enough signatures were obtained to publish on-chain
         logger.info(
-            f"Collected {len(sigs)}/{self.confirmations_required} signatures "
+            f"Collected {len(sigs_by_signer)}/{self.confirmations_required} signatures "
             f"for Safe {self.address}#{safe_tx.nonce}"  # TODO: put URI
         )
         # TODO: Submit safe_tx and sigs to Safe API
