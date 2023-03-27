@@ -37,19 +37,19 @@ def SafeProxy(project, SafeSingleton, VERSION):
     return Proxy
 
 
-@pytest.fixture(params=["1/1", "1/2", "2/2", "2/3"])
+@pytest.fixture(scope="session", params=["1/1", "1/2", "2/2", "2/3", "3/3"])
 def MULTISIG_TYPE(request):
     # Param is `M/N`, but encoded as a string for repr in pytest
     return request.param.split("/")
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def THRESHOLD(MULTISIG_TYPE):
     M, _ = MULTISIG_TYPE
     return int(M)
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def OWNERS(accounts, MULTISIG_TYPE):
     _, N = MULTISIG_TYPE
     return accounts[: int(N)]
