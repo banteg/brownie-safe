@@ -15,14 +15,12 @@ def test_swap_owner(safe, accounts, OWNERS):
     # NOTE: Since the signers are processed in order, we replace the last account
 
     prev_owner = safe.compute_prev_signer(old_owner)
+
     # TODO: Remove `gas_limit` by allowing forking to compute gas limit
     # TODO: Figure out why `sender=safe` uses impersonated accounts
-    # receipt = safe.contract.swapOwner(prev_owner, old_owner, new_owner, sender=safe)
-    txn = safe.contract.swapOwner.as_transaction(
-        prev_owner, old_owner, new_owner, gas_limit=150_000
+    receipt = safe.contract.swapOwner(
+        prev_owner, old_owner, new_owner, sender=safe, gas_limit=200_000, safeTxGas=195_000
     )
-    print(safe.contract.decode_input(txn.data))
-    receipt = safe.call(txn, safeTxGas=145_000)
 
     assert not receipt.events.filter(safe.contract.ExecutionFailure)
     assert receipt.events.filter(safe.contract.ExecutionSuccess)
@@ -39,13 +37,9 @@ def test_add_owner(safe, accounts, OWNERS):
 
     # TODO: Remove `gas_limit` by allowing forking to compute gas limit
     # TODO: Figure out why `sender=safe` uses impersonated accounts
-    # receipt = safe.contract.addOwnerWithThreshold(
-    #     new_owner, safe.confirmations_required, sender=safe
-    # )
-    txn = safe.contract.addOwnerWithThreshold.as_transaction(
-        new_owner, safe.confirmations_required, gas_limit=150_000
+    receipt = safe.contract.addOwnerWithThreshold(
+        new_owner, safe.confirmations_required, sender=safe, gas_limit=200_000, safeTxGas=195_000
     )
-    receipt = safe.call(txn, safeTxGas=145_000)
 
     assert not receipt.events.filter(safe.contract.ExecutionFailure)
     assert receipt.events.filter(safe.contract.ExecutionSuccess)
@@ -63,13 +57,21 @@ def test_remove_owner(safe, OWNERS):
     prev_owner = safe.compute_prev_signer(old_owner)
     # TODO: Remove `gas_limit` by allowing forking to compute gas limit
     # TODO: Figure out why `sender=safe` uses impersonated accounts
-    # receipt = safe.contract.removeOwner(
-    #     prev_owner, old_owner, safe.confirmations_required, sender=safe
-    # )
-    txn = safe.contract.removeOwner.as_transaction(
-        prev_owner, old_owner, safe.confirmations_required, gas_limit=150_000
+    receipt = safe.contract.removeOwner(
+        prev_owner,
+        old_owner,
+        # Can't set the threshold to zero or more than the number of owners after removal
+        max(len(OWNERS) - 1, safe.confirmations_required - 1),
+        sender=safe,
+        gas_limit=200_000,
+        safeTxGas=195_000,
     )
-    receipt = safe.call(txn, safeTxGas=145_000)
+
+    # TODO: Add fucntionality to ContractEvent such that this can work
+    # assert receipt.events == [
+    #     safe.contract.ExecutionSuccess(),
+    #     safe.contract.RemovedOwner(owner=old_owner),
+    # ]
 
     assert not receipt.events.filter(safe.contract.ExecutionFailure)
     assert receipt.events.filter(safe.contract.ExecutionSuccess)

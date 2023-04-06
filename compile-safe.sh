@@ -8,7 +8,7 @@ cd safe-contracts
 git checkout v1.3.0
 rm -rf contracts/test
 rm -f contracts/interfaces/ViewStorageAccessible.sol
-cat EOF>>
+cat<<EOF
 dependencies:
   - name: OpenZeppelin
     github: OpenZeppelin/openzeppelin-contracts

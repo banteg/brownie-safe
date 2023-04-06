@@ -10,16 +10,16 @@ extras_require = {
         "hypothesis>=6.2.0,<7.0",  # Strategy-based fuzzer
     ],
     "lint": [
-        "black>=22.10.0",  # auto-formatter and linter
-        "mypy>=0.982",  # Static type analyzer
+        "black>=23.1.0,<24",  # Auto-formatter and linter
+        "mypy>=0.991",  # Static type analyzer
         "types-setuptools",  # Needed for mypy type shed
-        "flake8>=5.0.4",  # Style linter
-        "isort>=5.10.1",  # Import sorting linter
+        "flake8>=6.0.0,<7",  # Style linter
+        "isort>=5.10.1,<6",  # Import sorting linter
     ],
     "release": [  # `release` GitHub Action job uses this
         "setuptools",  # Installation tool
         "wheel",  # Packaging tool
-        "twine",  # Package upload tool
+        "twine==3.8.0",  # Package upload tool
     ],
     "dev": [
         "commitizen",  # Manage commits and publishing releases
@@ -54,7 +54,7 @@ setup(
     url="https://github.com/banteg/ape-safe",
     include_package_data=True,
     install_requires=[
-        "eth-ape>=0.6.0,<0.7.0",
+        "eth-ape>=0.6.7,<0.7.0",
         "eip712>=0.2.0,<0.3.0",
     ],
     entry_points={
@@ -62,7 +62,7 @@ setup(
             "ape_safe=ape_safe._cli:cli",
         ],
     },
-    python_requires=">=3.8,<4",
+    python_requires=">=3.8,<3.11",
     extras_require=extras_require,
     py_modules=["ape_safe"],
     license="Apache-2.0",
