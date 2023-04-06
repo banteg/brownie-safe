@@ -1,3 +1,2 @@
-# Temporary hacks!
-git+https://github.com/fubuloubu/ape@fix/no-union-type
-git+https://github.com/ApeWorX/eip712@refactor/reduce-name-conflicts
+# Just so the ApeWorX/github-action picks up installing this
+.[test]

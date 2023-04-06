@@ -1,5 +1,6 @@
 plugins:
   - name: solidity
+  - name: foundry
 
 dependencies:
   - name: safe-contracts

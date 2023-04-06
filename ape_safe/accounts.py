@@ -1,7 +1,7 @@
 import json
 from itertools import islice
 from pathlib import Path
-from typing import Iterable, Iterator, List, Optional, Set, Tuple, Type, Union
+from typing import Iterable, Iterator, List, Optional, Tuple, Type, Union
 
 from ape.api import AccountAPI, AccountContainerAPI, ReceiptAPI, TransactionAPI
 from ape.api.address import BaseAddress
@@ -129,7 +129,9 @@ class SafeAccount(AccountAPI):
         )
         safe_tx["value"] = safe_tx_kwargs.get("value", txn.value if txn else 0)
         safe_tx["data"] = safe_tx_kwargs.get("data", txn.data if txn else b"")
-        safe_tx["nonce"] = safe_tx_kwargs.get("nonce", self.nonce)
+        safe_tx["nonce"] = safe_tx_kwargs.get(
+            "nonce", self.next_nonce
+        )  # NOTE: Caution do NOT use self.nonce
         safe_tx["operation"] = safe_tx_kwargs.get("operation", 0)
 
         safe_tx["safeTxGas"] = safe_tx_kwargs.get("safeTxGas", 0)
@@ -169,7 +171,6 @@ class SafeAccount(AccountAPI):
         **txn_options,
     ) -> TransactionAPI:
         exec_args = list(safe_tx._body_["message"].values())[:-1]  # NOTE: Skip `nonce`
-        # TODO: Will fail because of https://github.com/ApeWorX/ape/pull/1358
         encoded_signatures = b"".join(sig.encode_rsv() for sig in signatures)
 
         # Try to catch Gnosis Safe error codes before submitting
