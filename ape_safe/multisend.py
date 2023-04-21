@@ -224,4 +224,10 @@ class MultiSend(ManagerAccessMixin):
             :class:`~ape.api.transactions.TransactionAPI`
         """
         self._validate_calls(**txn_kwargs)
-        return self.handler.as_transaction(b"".join(self.encoded_calls), **txn_kwargs)
+        # NOTE: Will fail using `self.handler.as_transaction` because handler
+        #       expects to be called only via delegatecall
+        return self.network_manager.ecosystem.create_transaction(
+            receiver=self.handler.contract.address,
+            data=self.handler.encode_input(b"".join(self.encoded_calls)),
+            **txn_kwargs,
+        )
