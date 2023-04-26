@@ -66,7 +66,6 @@ class ApeSafe(Safe):
         self.base_url = base_url or transaction_service[chain.id]
         self.multisend = multisend or multisends.get(chain.id, MULTISEND_CALL_ONLY)
         super().__init__(address, ethereum_client)
-        super().contract  # `contract` is a cached property of Safe
 
     def __str__(self):
         return EthAddress(self.address)
