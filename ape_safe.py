@@ -66,6 +66,7 @@ class ApeSafe(Safe):
         self.base_url = base_url or transaction_service[chain.id]
         self.multisend = multisend or multisends.get(chain.id, MULTISEND_CALL_ONLY)
         super().__init__(address, ethereum_client)
+        super().contract  # `contract` is a cached property of Safe
 
     def __str__(self):
         return EthAddress(self.address)
@@ -79,15 +80,6 @@ class ApeSafe(Safe):
         Unlocked Brownie account for Gnosis Safe.
         """
         return accounts.at(self.address, force=True)
-
-    def contract(self, address=None) -> Contract:
-        """
-        Instantiate a Brownie Contract owned by Safe account.
-        """
-        if address:
-            address = to_checksum_address(address) if is_address(address) else web3.ens.resolve(address)
-            return Contract(address, owner=self.account)
-        return Safe.contract if hasattr(Safe, 'contract') else Safe.get_contract
 
     def pending_nonce(self) -> int:
         """
