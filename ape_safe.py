@@ -203,7 +203,10 @@ class ApeSafe(Safe):
         # Requesting accounts triggers a connection prompt
         frame = Web3(Web3.HTTPProvider(frame_rpc, {'timeout': 600}))
         account = frame.eth.accounts[0]
-        signature = frame.manager.request_blocking('eth_signTypedData_v4', [account, safe_tx.eip712_structured_data])
+        #signature = frame.manager.request_blocking('eth_signTypedData_v4', [account, safe_tx.eip712_structured_data])  #doodoo
+        d = safe_tx.eip712_structured_data
+        d['message']['data'] = d['message']['data'].hex()
+        signature = frame.manager.request_blocking('eth_signTypedData_v4', [account, d])
         # Convert to a format expected by Gnosis Safe
         v, r, s = signature_split(signature)
         # Ledger doesn't support EIP-155
