@@ -84,7 +84,7 @@ class SafeAccount(AccountAPI):
     @property
     def version(self) -> str:
         try:
-            return self.client.safe_details.version
+            return self.client.safe_details.version.replace("+L2", "")
         except Exception:
             return self.contract.VERSION()
 
