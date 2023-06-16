@@ -8,7 +8,7 @@ from ape.api.address import BaseAddress
 from ape.contracts import ContractInstance
 from ape.logging import logger
 from ape.types import AddressType, HexBytes, MessageSignature, SignableMessage
-from ape.utils import cached_property
+from ape.utils import ZERO_ADDRESS, cached_property
 from ape_ethereum.transactions import TransactionType
 from eip712.common import create_safe_tx_def
 from eth_utils import keccak, to_bytes, to_int
@@ -73,6 +73,14 @@ class SafeAccount(AccountAPI):
     @property
     def contract(self) -> ContractInstance:
         return self.chain_manager.contracts.instance_at(self.address)
+
+    @cached_property
+    def fallback_manager(self) -> Optional[ContractInstance]:
+        slot = keccak(text="fallback_manager.handler.address")
+        value = self.provider.get_storage_at(self.address, slot)
+        address = self.network_manager.ecosystem.decode_address(value[-20:])
+        if address != ZERO_ADDRESS:
+            return self.chain_manager.contracts.instance_at(address)
 
     @cached_property
     def client(self) -> SafeClient:
