@@ -91,6 +91,8 @@ class SafeAccount(AccountAPI):
         address = self.network_manager.ecosystem.decode_address(value[-20:])
         if address != ZERO_ADDRESS:
             return self.chain_manager.contracts.instance_at(address)
+        else:
+            return None
 
     @cached_property
     def client(self) -> SafeClient:
