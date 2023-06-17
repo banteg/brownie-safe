@@ -12,6 +12,7 @@ from ape.utils import ZERO_ADDRESS, cached_property
 from ape_ethereum.transactions import TransactionType
 from eip712.common import create_safe_tx_def
 from eth_utils import keccak, to_bytes, to_int
+from ethpm_types import ContractType
 
 from .client import SafeClient, SafeTx
 from .exceptions import NoLocalSigners, NotASigner, NotEnoughSignatures, handle_safe_logic_error
@@ -70,12 +71,21 @@ class SafeAccount(AccountAPI):
     def address(self) -> AddressType:
         return self.network_manager.ethereum.decode_address(self.account_file["address"])
 
-    @property
+    @cached_property
     def contract(self) -> ContractInstance:
-        return self.chain_manager.contracts.instance_at(self.address)
+        safe_contract = self.chain_manager.contracts.instance_at(self.address)
+        if self.fallback_handler is None:
+            return safe_contract
+        else:
+            safe_abi = safe_contract.contract_type.dict()["abi"]
+            fallback_abi = self.fallback_handler.contract_type.dict()["abi"]
+            contract_type = ContractType.parse_obj(
+                {"contractName": safe_contract.contract_type.name, "abi": safe_abi + fallback_abi}
+            )
+            return ContractInstance(self.address, contract_type)
 
     @cached_property
-    def fallback_manager(self) -> Optional[ContractInstance]:
+    def fallback_handler(self) -> Optional[ContractInstance]:
         slot = keccak(text="fallback_manager.handler.address")
         value = self.provider.get_storage_at(self.address, slot)
         address = self.network_manager.ecosystem.decode_address(value[-20:])
