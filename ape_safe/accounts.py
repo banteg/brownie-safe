@@ -74,15 +74,18 @@ class SafeAccount(AccountAPI):
     @cached_property
     def contract(self) -> ContractInstance:
         safe_contract = self.chain_manager.contracts.instance_at(self.address)
-        if self.fallback_handler is None:
-            return safe_contract
-        else:
-            safe_abi = safe_contract.contract_type.dict()["abi"]
-            fallback_abi = self.fallback_handler.contract_type.dict()["abi"]
-            contract_type = ContractType.parse_obj(
-                {"contractName": safe_contract.contract_type.name, "abi": safe_abi + fallback_abi}
+        if fallback_abi := self.fallback_handler and self.fallback_handler.contract_type.dict()["abi"]:
+            contract_type = safe_contract.contract_type.dict()
+            if set(fallback_abi) in set(contract_type["abi"]):
+                return safe_contract
+
+            contract_type["abi"].extend(fallback_abi)
+            return self.chain_manager.contracts.instance_at(
+                self.address, contract_type=ContractType.parse_obj(contract_type)
             )
-            return ContractInstance(self.address, contract_type)
+
+        else:
+            return safe_contract
 
     @cached_property
     def fallback_handler(self) -> Optional[ContractInstance]:
