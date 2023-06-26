@@ -55,11 +55,11 @@ class ApiError(Exception):
     pass
 
 
-class ApeSafe(Safe):
+class BrownieSafe(Safe):
 
     def __init__(self, address, base_url=None, multisend=None):
         """
-        Create an ApeSafe from an address or a ENS name and use a default connection.
+        Create an BrownieSafe from an address or a ENS name and use a default connection.
         """
         address = to_checksum_address(address) if is_address(address) else web3.ens.resolve(address)
         ethereum_client = EthereumClient(web3.provider.endpoint_uri)
@@ -71,7 +71,7 @@ class ApeSafe(Safe):
         return EthAddress(self.address)
 
     def __repr__(self):
-        return f'ApeSafe("{self.address}")'
+        return f'BrownieSafe("{self.address}")'
 
     @property
     def account(self) -> LocalAccount:
@@ -392,8 +392,8 @@ class ApeSafe(Safe):
         """
         Get safe nonce from execution tx.
         """
-        safe_txhash = ApeSafe.get_safe_txhash_from_execution_tx(tx)
-        return ApeSafe.get_safe_nonce_from_safe_tx(safe_txhash)
+        safe_txhash = BrownieSafe.get_safe_txhash_from_execution_tx(tx)
+        return BrownieSafe.get_safe_nonce_from_safe_tx(safe_txhash)
 
     @staticmethod
     def get_safe_nonce_from_safe_tx(safe_txhash: str) -> int:
