@@ -1,17 +1,17 @@
 [tool.poetry]
-name = "ape-safe"
-version = "0.7.1"
+name = "brownie-safe"
+version = "0.8.0"
 description = "Build complex Gnosis Safe transactions and safely preview them in a forked environment."
 authors = ["banteg"]
 license = "MIT"
-repository = "https://github.com/banteg/ape-safe"
+repository = "https://github.com/banteg/brownie-safe"
 readme = "readme.md"
 
 [tool.poetry.dependencies]
-python = ">=3.8,<3.11"
-eth-brownie = "^1.19.2"
-safe-eth-py = "^5.0.0"
-trezor = "^0.13.5"
+python = ">=3.8"
+eth-brownie = ">=1.19.3"
+safe-eth-py = ">=5.5"
+trezor = ">=0.13.6"
 
 [tool.poetry.dev-dependencies]
 
