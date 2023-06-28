@@ -1,7 +1,7 @@
 Signing
 =======
 
-Several options for signing transactions are available in Ape Safe, including support for hardware wallets.
+Several options for signing transactions are available in Brownie Safe, including support for hardware wallets.
 
 Signatures are required, Gnosis `transaction service`_ will only accept a transaction with an owner signature or from `a delegate`_.
 
@@ -10,7 +10,7 @@ Local accounts
 
 This is the default signing method when you send a transaction.
 
-Import a private key or a keystore into Brownie to use it with Ape Safe.
+Import a private key or a keystore into Brownie to use it with Brownie Safe.
 Brownie accounts are encrypted at rest as .json keystores.
 See also Brownie's `Account management`_ documentation.
 
@@ -23,7 +23,7 @@ See also Brownie's `Account management`_ documentation.
     # Import a .json keystore
     $ brownie accounts import ape keystore.json
 
-Ape Safe will prompt you for an account (unless supplied as an argument) and Brownie will prompt you for a password.
+Brownie Safe will prompt you for an account (unless supplied as an argument) and Brownie will prompt you for a password.
 
 .. code-block:: python
 
@@ -54,7 +54,7 @@ To sign, select an account in Frame and do this:
     >>> safe.sign_with_frame(safe_tx)
 
 
-Frame exposes an RPC connection at ``http://127.0.0.1:1248`` and exposes the currently selected account as ``eth_accounts[0]``. Ape Safe sends the payload as ``eth_signTypedData_v4``, which must be supported by your signer device.
+Frame exposes an RPC connection at ``http://127.0.0.1:1248`` and exposes the currently selected account as ``eth_accounts[0]``. Brownie Safe sends the payload as ``eth_signTypedData_v4``, which must be supported by your signer device.
 
 Trezor
 ------

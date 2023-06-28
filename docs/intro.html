@@ -1,22 +1,21 @@
 
 <!DOCTYPE html>
 
-<html>
+<html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
-    <title>Introduction &#8212; Ape Safe 0.1.2 documentation</title>
+    <title>Introduction &#8212; Brownie Safe 0.7.2 documentation</title>
     <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="_static/alabaster.css" />
     <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
-    <script src="_static/jquery.js"></script>
-    <script src="_static/underscore.js"></script>
     <script src="_static/doctools.js"></script>
+    <script src="_static/sphinx_highlight.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Quickstart" href="quickstart.html" />
-    <link rel="prev" title="Ape Safe: Gnosis Safe tx builder" href="index.html" />
+    <link rel="prev" title="Brownie Safe: Gnosis Safe transaction builder" href="index.html" />
    
   <link rel="stylesheet" href="_static/custom.css" type="text/css" />
   
@@ -34,12 +33,12 @@
           <div class="body" role="main">
             
   <section id="introduction">
-<h1>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h1>
+<h1>Introduction<a class="headerlink" href="#introduction" title="Permalink to this heading">¶</a></h1>
 <p>Since multisig signers are usually slow to fulfill their duties, it’s common to batch multiple actions and send them as one transaction.
 Batching also serves as a rudimentary zap if you are not concerned about the exactly matching in/out values and allow for some slippage.</p>
 <p>Gnosis Safe has an excellent Transaction Builder app that allows scaffolding complex interactions.
 This approach is usually faster and cheaper than deploying a bespoke contract for every transaction.</p>
-<p>Ape Safe expands on this idea. It allows you to use multisig as a regular account and then convert the transaction history into one multisend transaction and make sure it works before it hits the signers.</p>
+<p>Brownie Safe expands on this idea. It allows you to use multisig as a regular account and then convert the transaction history into one multisend transaction and make sure it works before it hits the signers.</p>
 </section>
 
 
@@ -49,7 +48,7 @@ This approach is usually faster and cheaper than deploying a bespoke contract fo
       </div>
       <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
         <div class="sphinxsidebarwrapper">
-<h1 class="logo"><a href="index.html">Ape Safe</a></h1>
+<h1 class="logo"><a href="index.html">Brownie Safe</a></h1>
 
 
 
@@ -57,7 +56,7 @@ This approach is usually faster and cheaper than deploying a bespoke contract fo
 
 
 <p>
-<iframe src="https://ghbtns.com/github-btn.html?user=banteg&repo=ape-safe&type=star&count=true&size=large&v=2"
+<iframe src="https://ghbtns.com/github-btn.html?user=banteg&repo=brownie-safe&type=star&count=true&size=large&v=2"
   allowtransparency="true" frameborder="0" scrolling="0" width="200px" height="35px"></iframe>
 </p>
 
@@ -74,21 +73,21 @@ This approach is usually faster and cheaper than deploying a bespoke contract fo
 <li class="toctree-l1"><a class="reference internal" href="detailed.html">Detailed example</a></li>
 <li class="toctree-l1"><a class="reference internal" href="useful.html">Useful links</a></li>
 <li class="toctree-l1"><a class="reference internal" href="changelog.html">Changelog</a></li>
-<li class="toctree-l1"><a class="reference internal" href="ape_safe.html">API docs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="brownie_safe.html">API docs</a></li>
 </ul>
 
 
 <hr />
 <ul>
     
-    <li class="toctree-l1"><a href="https://github.com/banteg/ape-safe">GitHub</a></li>
+    <li class="toctree-l1"><a href="https://github.com/banteg/brownie-safe">GitHub</a></li>
     
 </ul>
 <div class="relations">
 <h3>Related Topics</h3>
 <ul>
   <li><a href="index.html">Documentation overview</a><ul>
-      <li>Previous: <a href="index.html" title="previous chapter">Ape Safe: Gnosis Safe tx builder</a></li>
+      <li>Previous: <a href="index.html" title="previous chapter">Brownie Safe: Gnosis Safe transaction builder</a></li>
       <li>Next: <a href="quickstart.html" title="next chapter">Quickstart</a></li>
   </ul></li>
 </ul>
@@ -102,7 +101,7 @@ This approach is usually faster and cheaper than deploying a bespoke contract fo
     </form>
     </div>
 </div>
-<script>$('#searchbox').show(0);</script>
+<script>document.getElementById('searchbox').style.display = "block"</script>
 
 
 
@@ -116,11 +115,11 @@ This approach is usually faster and cheaper than deploying a bespoke contract fo
       <div class="clearer"></div>
     </div>
     <div class="footer">
-      &copy;2021, banteg.
+      &copy;2021-2023, banteg.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 4.5.0</a>
-      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 6.2.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.13</a>
       
       |
       <a href="_sources/intro.rst.txt"

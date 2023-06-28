@@ -8,7 +8,7 @@ Then you can simply:
 
 .. code-block:: bash
 
-   pip install -U ape-safe
+   pip install -U brownie-safe
 
 
 .. _Brownie: https://eth-brownie.readthedocs.io/en/latest/install.html
