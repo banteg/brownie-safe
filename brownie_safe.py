@@ -126,8 +126,7 @@ class BrownieSafe(Safe):
         """
         Subsequent nonce which accounts for pending transactions in the transaction service.
         """
-        url = urljoin(self.base_url, f'/api/v1/safes/{self.address}/multisig-transactions/')
-        results = requests.get(url).json()['results']
+        results = self.transaction_service.get_transactions(self.address)
         return results[0]['nonce'] + 1 if results else 0
 
     def tx_from_receipt(self, receipt: TransactionReceipt, operation: SafeOperation = SafeOperation.CALL, safe_nonce: int = None) -> SafeTx:
@@ -263,45 +262,20 @@ class BrownieSafe(Safe):
         if not safe_tx.sorted_signers:
             self.sign_transaction(safe_tx)
 
-        sender = safe_tx.sorted_signers[0]
-
-        url = urljoin(self.base_url, f'/api/v1/safes/{self.address}/multisig-transactions/')
-        data = {
-            'to': safe_tx.to,
-            'value': safe_tx.value,
-            'data': safe_tx.data.hex() if safe_tx.data else None,
-            'operation': safe_tx.operation,
-            'gasToken': safe_tx.gas_token,
-            'safeTxGas': safe_tx.safe_tx_gas,
-            'baseGas': safe_tx.base_gas,
-            'gasPrice': safe_tx.gas_price,
-            'refundReceiver': safe_tx.refund_receiver,
-            'nonce': safe_tx.safe_nonce,
-            'contractTransactionHash': safe_tx.safe_tx_hash.hex(),
-            'sender': sender,
-            'signature': safe_tx.signatures.hex() if safe_tx.signatures else None,
-            'origin': 'github.com/banteg/ape-safe',
-        }
-        response = requests.post(url, json=data)
-        if not response.ok:
-            raise ApiError(f'Error posting transaction: {response.text}')
+        self.transaction_service.post_transaction(safe_tx)
 
     def post_signature(self, safe_tx: SafeTx, signature: bytes):
         """
         Submit a confirmation signature to a transaction service.
         """
-        url = urljoin(self.base_url, f'/api/v1/multisig-transactions/{safe_tx.safe_tx_hash.hex()}/confirmations/')
-        response = requests.post(url, json={'signature': HexBytes(signature).hex()})
-        if not response.ok:
-            raise ApiError(f'Error posting signature: {response.text}')
+        self.transaction_service.post_signatures(safe_tx.safe_tx_hash, signature)
 
     @property
     def pending_transactions(self) -> List[SafeTx]:
         """
         Retrieve pending transactions from the transaction service.
         """
-        url = urljoin(self.base_url, f'/api/v1/safes/{self.address}/transactions/')
-        results = requests.get(url).json()['results']
+        results = self.transaction_service._get_request(f'/api/v1/safes/{self.address}/transactions/').json()['results']
         nonce = self.retrieve_nonce()
         transactions = [
             self.build_multisig_tx(
