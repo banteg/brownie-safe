@@ -4,7 +4,7 @@
 
 Brownie Safe allows you to iteratively build complex multi-step Gnosis Safe transactions and safely preview their side effects from the convenience of a locally forked mainnet environment.
 
-*Previously known as Ape Safe`
+*Previously known as Ape Safe*
 
 ## Installation
 
