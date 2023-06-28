@@ -1,10 +1,10 @@
+import os
+import warnings
 from copy import copy
-from typing import Dict, List, Union, Optional
-from urllib.parse import urljoin
+from typing import Dict, List, Optional, Union
 
 import click
-import os
-import requests
+from gnosis.eth import EthereumClient, EthereumNetwork
 from web3 import Web3  # don't move below brownie import
 from brownie import Contract, accounts, chain, history, web3
 from brownie.convert.datatypes import EthAddress
@@ -12,16 +12,18 @@ from brownie.network.account import LocalAccount
 from brownie.network.transaction import TransactionReceipt
 from eth_abi import encode_abi
 from eth_utils import is_address, to_checksum_address
-from gnosis.eth import EthereumClient
 from gnosis.safe import Safe, SafeOperation
 from gnosis.safe.multi_send import MultiSend, MultiSendOperation, MultiSendTx
 from gnosis.safe.safe_tx import SafeTx
 from gnosis.safe.signatures import signature_split, signature_to_bytes
+from gnosis.safe.api import TransactionServiceApi
 from hexbytes import HexBytes
-from trezorlib import tools, ui, ethereum
+from trezorlib import ethereum, tools, ui
 from trezorlib.client import TrezorClient
 from trezorlib.messages import EthereumSignMessage
 from trezorlib.transport import get_transport
+from enum import Enum
+from gnosis.eth.ethereum_client import EthereumNetworkNotSupported
 
 MULTISEND_CALL_ONLY = '0x40A2aCCbd92BCA938b02010E17A5b8929b49130D'
 multisends = {
@@ -30,21 +32,50 @@ multisends = {
     288: '0x2Bd65cd56cAAC777f87d7808d13DEAF88e54E0eA',
     43114: '0x998739BFdAAdde7C933B942a68053933098f9EDa'
 }
-transaction_service = {
-    1: 'https://safe-transaction-mainnet.safe.global',
-    5: 'https://safe-transaction-goerli.safe.global',
-    10: 'https://safe-transaction-optimism.safe.global',
-    56: 'https://safe-transaction-bsc.safe.global',
-    100: 'https://safe-transaction-gnosis-chain.safe.global',
-    137: 'https://safe-transaction-polygon.safe.global',
-    246: 'https://safe-transaction-ewc.safe.global',
-    250: 'https://safe-txservice.fantom.network',
-    288: 'https://safe-transaction.mainnet.boba.network',
-    42161: 'https://safe-transaction-arbitrum.safe.global',
-    43114: 'https://safe-transaction-avalanche.safe.global',
-    73799: 'https://safe-transaction-volta.safe.global',
-    1313161554: 'https://safe-transaction-aurora.safe.global',
-}
+
+
+class EthereumNetworkBackport(Enum):
+    ARBITRUM_ONE = 42161
+    AURORA_MAINNET = 1313161554
+    AVALANCHE_C_CHAIN = 43114
+    BINANCE_SMART_CHAIN_MAINNET = 56
+    ENERGY_WEB_CHAIN = 246
+    GOERLI = 5
+    MAINNET = 1
+    POLYGON = 137
+    OPTIMISM = 10
+    ENERGY_WEB_VOLTA_TESTNET = 73799
+    GNOSIS = 100
+    FANTOM = 250
+    BOBA_NETWORK = 288
+
+
+class TransactionServiceBackport(TransactionServiceApi):
+    URL_BY_NETWORK = {
+        EthereumNetworkBackport.ARBITRUM_ONE: "https://safe-transaction-arbitrum.safe.global",
+        EthereumNetworkBackport.AURORA_MAINNET: "https://safe-transaction-aurora.safe.global",
+        EthereumNetworkBackport.AVALANCHE_C_CHAIN: "https://safe-transaction-avalanche.safe.global",
+        EthereumNetworkBackport.BINANCE_SMART_CHAIN_MAINNET: "https://safe-transaction-bsc.safe.global",
+        EthereumNetworkBackport.ENERGY_WEB_CHAIN: "https://safe-transaction-ewc.safe.global",
+        EthereumNetworkBackport.GOERLI: "https://safe-transaction-goerli.safe.global",
+        EthereumNetworkBackport.MAINNET: "https://safe-transaction-mainnet.safe.global",
+        EthereumNetworkBackport.POLYGON: "https://safe-transaction-polygon.safe.global",
+        EthereumNetworkBackport.OPTIMISM: "https://safe-transaction-optimism.safe.global",
+        EthereumNetworkBackport.ENERGY_WEB_VOLTA_TESTNET: "https://safe-transaction-volta.safe.global",
+        EthereumNetworkBackport.GNOSIS: "https://safe-transaction-gnosis-chain.safe.global",
+        EthereumNetworkBackport.FANTOM: "https://safe-txservice.fantom.network",
+        EthereumNetworkBackport.BOBA_NETWORK: "https://safe-transaction.mainnet.boba.network",
+    }
+
+    def __init__(self, network: EthereumNetwork, ethereum_client: EthereumClient | None = None, base_url: str | None = None):
+        self.network = network
+        self.ethereum_client = ethereum_client
+        self.base_url = base_url or self.URL_BY_NETWORK.get(EthereumNetworkBackport(network.value))
+        if not self.base_url:
+            raise EthereumNetworkNotSupported(network)
+
+
+warnings.filterwarnings('ignore', 'The function signature for resolver.*')
 
 
 class ExecutionFailure(Exception):
@@ -55,15 +86,15 @@ class ApiError(Exception):
     pass
 
 
-class ApeSafe(Safe):
+class BrownieSafe(Safe):
 
     def __init__(self, address, base_url=None, multisend=None):
         """
-        Create an ApeSafe from an address or a ENS name and use a default connection.
+        Create an BrownieSafe from an address or a ENS name and use a default connection.
         """
         address = to_checksum_address(address) if is_address(address) else web3.ens.resolve(address)
         ethereum_client = EthereumClient(web3.provider.endpoint_uri)
-        self.base_url = base_url or transaction_service[chain.id]
+        self.transaction_service = TransactionServiceBackport(ethereum_client.get_network(), ethereum_client, base_url)
         self.multisend = multisend or multisends.get(chain.id, MULTISEND_CALL_ONLY)
         super().__init__(address, ethereum_client)
 
@@ -71,7 +102,7 @@ class ApeSafe(Safe):
         return EthAddress(self.address)
 
     def __repr__(self):
-        return f'ApeSafe("{self.address}")'
+        return f'BrownieSafe("{self.address}")'
 
     @property
     def account(self) -> LocalAccount:
@@ -80,21 +111,18 @@ class ApeSafe(Safe):
         """
         return accounts.at(self.address, force=True)
 
-    def contract(self, address=None) -> Contract:
+    def contract(self, address) -> Contract:
         """
         Instantiate a Brownie Contract owned by Safe account.
         """
-        if address:
-            address = to_checksum_address(address) if is_address(address) else web3.ens.resolve(address)
-            return Contract(address, owner=self.account)
-        return Safe.contract if hasattr(Safe, 'contract') else Safe.get_contract
+        address = to_checksum_address(address) if is_address(address) else web3.ens.resolve(address)
+        return Contract(address, owner=self.account)
 
     def pending_nonce(self) -> int:
         """
         Subsequent nonce which accounts for pending transactions in the transaction service.
         """
-        url = urljoin(self.base_url, f'/api/v1/safes/{self.address}/multisig-transactions/')
-        results = requests.get(url).json()['results']
+        results = self.transaction_service.get_transactions(self.address)
         return results[0]['nonce'] + 1 if results else 0
 
     def tx_from_receipt(self, receipt: TransactionReceipt, operation: SafeOperation = SafeOperation.CALL, safe_nonce: int = None) -> SafeTx:
@@ -230,45 +258,20 @@ class ApeSafe(Safe):
         if not safe_tx.sorted_signers:
             self.sign_transaction(safe_tx)
 
-        sender = safe_tx.sorted_signers[0]
-
-        url = urljoin(self.base_url, f'/api/v1/safes/{self.address}/multisig-transactions/')
-        data = {
-            'to': safe_tx.to,
-            'value': safe_tx.value,
-            'data': safe_tx.data.hex() if safe_tx.data else None,
-            'operation': safe_tx.operation,
-            'gasToken': safe_tx.gas_token,
-            'safeTxGas': safe_tx.safe_tx_gas,
-            'baseGas': safe_tx.base_gas,
-            'gasPrice': safe_tx.gas_price,
-            'refundReceiver': safe_tx.refund_receiver,
-            'nonce': safe_tx.safe_nonce,
-            'contractTransactionHash': safe_tx.safe_tx_hash.hex(),
-            'sender': sender,
-            'signature': safe_tx.signatures.hex() if safe_tx.signatures else None,
-            'origin': 'github.com/banteg/ape-safe',
-        }
-        response = requests.post(url, json=data)
-        if not response.ok:
-            raise ApiError(f'Error posting transaction: {response.text}')
+        self.transaction_service.post_transaction(safe_tx)
 
     def post_signature(self, safe_tx: SafeTx, signature: bytes):
         """
         Submit a confirmation signature to a transaction service.
         """
-        url = urljoin(self.base_url, f'/api/v1/multisig-transactions/{safe_tx.safe_tx_hash.hex()}/confirmations/')
-        response = requests.post(url, json={'signature': HexBytes(signature).hex()})
-        if not response.ok:
-            raise ApiError(f'Error posting signature: {response.text}')
+        self.transaction_service.post_signatures(safe_tx.safe_tx_hash, signature)
 
     @property
     def pending_transactions(self) -> List[SafeTx]:
         """
         Retrieve pending transactions from the transaction service.
         """
-        url = urljoin(self.base_url, f'/api/v1/safes/{self.address}/transactions/')
-        results = requests.get(url).json()['results']
+        results = self.transaction_service._get_request(f'/api/v1/safes/{self.address}/transactions/').json()['results']
         nonce = self.retrieve_nonce()
         transactions = [
             self.build_multisig_tx(
@@ -305,7 +308,7 @@ class ApeSafe(Safe):
 
     def preview_tx(self, safe_tx: SafeTx, events=True, call_trace=False) -> TransactionReceipt:
         tx = copy(safe_tx)
-        safe = Contract.from_abi('Gnosis Safe', self.address, self.contract.abi)
+        safe = Contract.from_abi('Gnosis Safe', self.address, self.get_contract().abi)
         # Replace pending nonce with the subsequent nonce, this could change the safe_tx_hash
         tx.safe_nonce = safe.nonce()
         # Forge signatures from the needed amount of owners, skip the one which submits the tx
@@ -360,6 +363,7 @@ class ApeSafe(Safe):
         # Requesting accounts triggers a connection prompt
         frame = Web3(Web3.HTTPProvider(frame_rpc, {'timeout': 600}))
         account = frame.eth.accounts[0]
+        frame.manager.request_blocking('wallet_switchEthereumChain', [{'chainId': hex(chain.id)}])
         payload = safe_tx.w3_tx.buildTransaction()
         tx = {
             "from": account,
@@ -377,27 +381,3 @@ class ApeSafe(Safe):
         """
         for safe_tx in self.pending_transactions:
             self.preview_tx(safe_tx, events=events, call_trace=call_trace)
-
-    @staticmethod
-    def get_safe_txhash_from_execution_tx(tx: Union[str,TransactionReceipt]) -> str:
-        """
-        Get safe txhash from execution tx.
-        """
-        if isinstance(tx, str):
-            tx = chain.get_transaction(tx)
-        return tx.events['ExecutionSuccess']['txHash']
-
-    @staticmethod
-    def get_safe_nonce_from_execution_tx(tx: Union[str,TransactionReceipt]) -> int:
-        """
-        Get safe nonce from execution tx.
-        """
-        safe_txhash = ApeSafe.get_safe_txhash_from_execution_tx(tx)
-        return ApeSafe.get_safe_nonce_from_safe_tx(safe_txhash)
-
-    @staticmethod
-    def get_safe_nonce_from_safe_tx(safe_txhash: str) -> int:
-        """
-        Get safe nonce from safe txhash.
-        """
-        return requests.get(f"{transaction_service[chain.id]}/api/v1/multisig-transactions/{safe_txhash}").json()['nonce']
