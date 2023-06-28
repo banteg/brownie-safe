@@ -3,14 +3,14 @@ Quickstart
 
 .. code-block:: bash
 
-    pip install -U ape-safe
+    pip install -U brownie-safe
     brownie console --network mainnet-fork
 
 
 .. code-block:: python
 
-    from ape_safe import ApeSafe
-    safe = ApeSafe('ychad.eth')
+    from brownie_safe import BrownieSafe
+    safe = BrownieSafe('ychad.eth')
 
     dai = safe.contract('0x6B175474E89094C44Da98b954EedeAC495271d0F')
     vault = safe.contract('0x19D3364A399d251E894aC732651be8B0E4e85001')
