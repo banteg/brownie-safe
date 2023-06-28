@@ -5,7 +5,9 @@ from typing import Dict, List, Optional, Union
 from urllib.parse import urljoin
 
 import click
+from gnosis.eth.ethereum_client import EthereumClient, EthereumNetwork
 import requests
+from web3 import Web3  # don't move below brownie import
 from brownie import Contract, accounts, chain, history, web3
 from brownie.convert.datatypes import EthAddress
 from brownie.network.account import LocalAccount
@@ -17,12 +19,14 @@ from gnosis.safe import Safe, SafeOperation
 from gnosis.safe.multi_send import MultiSend, MultiSendOperation, MultiSendTx
 from gnosis.safe.safe_tx import SafeTx
 from gnosis.safe.signatures import signature_split, signature_to_bytes
+from gnosis.safe.api import TransactionServiceApi
 from hexbytes import HexBytes
 from trezorlib import ethereum, tools, ui
 from trezorlib.client import TrezorClient
 from trezorlib.messages import EthereumSignMessage
 from trezorlib.transport import get_transport
-from web3 import Web3  # don't move below brownie import
+from enum import Enum
+from gnosis.eth.ethereum_client import EthereumNetworkNotSupported
 
 MULTISEND_CALL_ONLY = '0x40A2aCCbd92BCA938b02010E17A5b8929b49130D'
 multisends = {
@@ -31,21 +35,49 @@ multisends = {
     288: '0x2Bd65cd56cAAC777f87d7808d13DEAF88e54E0eA',
     43114: '0x998739BFdAAdde7C933B942a68053933098f9EDa'
 }
-transaction_service = {
-    1: 'https://safe-transaction-mainnet.safe.global',
-    5: 'https://safe-transaction-goerli.safe.global',
-    10: 'https://safe-transaction-optimism.safe.global',
-    56: 'https://safe-transaction-bsc.safe.global',
-    100: 'https://safe-transaction-gnosis-chain.safe.global',
-    137: 'https://safe-transaction-polygon.safe.global',
-    246: 'https://safe-transaction-ewc.safe.global',
-    250: 'https://safe-txservice.fantom.network',
-    288: 'https://safe-transaction.mainnet.boba.network',
-    42161: 'https://safe-transaction-arbitrum.safe.global',
-    43114: 'https://safe-transaction-avalanche.safe.global',
-    73799: 'https://safe-transaction-volta.safe.global',
-    1313161554: 'https://safe-transaction-aurora.safe.global',
-}
+
+
+class EthereumNetworkBackport(Enum):
+    ARBITRUM_ONE = 42161
+    AURORA_MAINNET = 1313161554
+    AVALANCHE_C_CHAIN = 43114
+    BINANCE_SMART_CHAIN_MAINNET = 56
+    ENERGY_WEB_CHAIN = 246
+    GOERLI = 5
+    MAINNET = 1
+    POLYGON = 137
+    OPTIMISM = 10
+    ENERGY_WEB_VOLTA_TESTNET = 73799
+    GNOSIS = 100
+    FANTOM = 250
+    BOBA_NETWORK = 288
+
+
+class TransactionServiceBackport(TransactionServiceApi):
+    URL_BY_NETWORK = {
+        EthereumNetworkBackport.ARBITRUM_ONE: "https://safe-transaction-arbitrum.safe.global",
+        EthereumNetworkBackport.AURORA_MAINNET: "https://safe-transaction-aurora.safe.global",
+        EthereumNetworkBackport.AVALANCHE_C_CHAIN: "https://safe-transaction-avalanche.safe.global",
+        EthereumNetworkBackport.BINANCE_SMART_CHAIN_MAINNET: "https://safe-transaction-bsc.safe.global",
+        EthereumNetworkBackport.ENERGY_WEB_CHAIN: "https://safe-transaction-ewc.safe.global",
+        EthereumNetworkBackport.GOERLI: "https://safe-transaction-goerli.safe.global",
+        EthereumNetworkBackport.MAINNET: "https://safe-transaction-mainnet.safe.global",
+        EthereumNetworkBackport.POLYGON: "https://safe-transaction-polygon.safe.global",
+        EthereumNetworkBackport.OPTIMISM: "https://safe-transaction-optimism.safe.global",
+        EthereumNetworkBackport.ENERGY_WEB_VOLTA_TESTNET: "https://safe-transaction-volta.safe.global",
+        EthereumNetworkBackport.GNOSIS: "https://safe-transaction-gnosis-chain.safe.global",
+        EthereumNetworkBackport.FANTOM: "https://safe-txservice.fantom.network",
+        EthereumNetworkBackport.BOBA_NETWORK: "https://safe-transaction.mainnet.boba.network",
+    }
+
+    def __init__(self, network: EthereumNetwork, ethereum_client: EthereumClient | None = None, base_url: str | None = None):
+        self.network = network
+        self.ethereum_client = ethereum_client
+        self.base_url = base_url or self.URL_BY_NETWORK.get(EthereumNetworkBackport(network.value))
+        if not self.base_url:
+            raise EthereumNetworkNotSupported(network)
+
+
 
 warnings.filterwarnings('ignore', 'The function signature for resolver.*')
 
@@ -66,7 +98,7 @@ class BrownieSafe(Safe):
         """
         address = to_checksum_address(address) if is_address(address) else web3.ens.resolve(address)
         ethereum_client = EthereumClient(web3.provider.endpoint_uri)
-        self.base_url = base_url or transaction_service[chain.id]
+        self.transaction_service = TransactionServiceBackport(ethereum_client.get_network(), ethereum_client, base_url)
         self.multisend = multisend or multisends.get(chain.id, MULTISEND_CALL_ONLY)
         super().__init__(address, ethereum_client)
 
