@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "brownie-safe"
-version = "1.0.0"
+version = "0.7.2"
 description = "Build complex Gnosis Safe transactions and safely preview them in a forked environment."
 authors = ["banteg"]
 license = "MIT"
@@ -18,3 +18,6 @@ trezor = "0.13.7"
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+ignore = ['E501']

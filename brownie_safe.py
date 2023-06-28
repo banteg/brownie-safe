@@ -2,10 +2,9 @@ import os
 import warnings
 from copy import copy
 from typing import Dict, List, Optional, Union
-from urllib.parse import urljoin
 
 import click
-from gnosis.eth.ethereum_client import EthereumClient, EthereumNetwork
+from gnosis.eth import EthereumClient, EthereumNetwork
 from web3 import Web3  # don't move below brownie import
 from brownie import Contract, accounts, chain, history, web3
 from brownie.convert.datatypes import EthAddress
@@ -13,7 +12,6 @@ from brownie.network.account import LocalAccount
 from brownie.network.transaction import TransactionReceipt
 from eth_abi import encode_abi
 from eth_utils import is_address, to_checksum_address
-from gnosis.eth import EthereumClient
 from gnosis.safe import Safe, SafeOperation
 from gnosis.safe.multi_send import MultiSend, MultiSendOperation, MultiSendTx
 from gnosis.safe.safe_tx import SafeTx
@@ -75,7 +73,6 @@ class TransactionServiceBackport(TransactionServiceApi):
         self.base_url = base_url or self.URL_BY_NETWORK.get(EthereumNetworkBackport(network.value))
         if not self.base_url:
             raise EthereumNetworkNotSupported(network)
-
 
 
 warnings.filterwarnings('ignore', 'The function signature for resolver.*')
