@@ -1,9 +1,9 @@
-Ape Safe: Gnosis Safe tx builder
+Brownie Safe: Gnosis Safe transaction builder
 ====================================
 
-Ape Safe allows you to iteratively build complex multi-step Gnosis Safe transactions and safely preview their side effects from the convenience of a locally forked mainnet environment.
+Brownie Safe (previously known as Ape Safe) allows you to iteratively build complex multi-step Gnosis Safe transactions and safely preview their side effects from the convenience of a locally forked mainnet environment.
 
-It is powered by Brownie_ and builds upon GnosisPy_, extending it with additional capabilities.
+It is powered by Brownie_ and builds upon SafeEthPy_, extending it with additional capabilities.
 This tool has been informally known as Chief Multisig Officer at Yearn_ and has been used to prepare complex transactions with great success.
 
 .. toctree::
@@ -20,5 +20,5 @@ This tool has been informally known as Chief Multisig Officer at Yearn_ and has 
 
 
 .. _Brownie: https://eth-brownie.readthedocs.io/en/latest/
-.. _GnosisPy: https://github.com/gnosis/gnosis-py
+.. _SafeEthPy: https://github.com/safe-global/safe-eth-py
 .. _Yearn: https://github.com/yearn

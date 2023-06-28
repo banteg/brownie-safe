@@ -17,12 +17,12 @@ sys.path.insert(0, os.path.abspath('..'))
 
 # -- Project information -----------------------------------------------------
 
-project = 'Ape Safe'
-copyright = '2021, banteg'
+project = 'Brownie Safe'
+copyright = '2021-2023, banteg'
 author = 'banteg'
 
 # The full version, including alpha/beta/rc tags
-release = '0.1.2'
+release = '0.7.2'
 
 
 # -- General configuration ---------------------------------------------------
