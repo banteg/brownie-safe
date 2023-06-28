@@ -54,7 +54,7 @@ setup(
     url="https://github.com/banteg/ape-safe",
     include_package_data=True,
     install_requires=[
-        "eth-ape>=0.6.7,<0.7.0",
+        "eth-ape>=0.6.11,<0.7.0",
         "eip712>=0.2.0,<0.3.0",
     ],
     entry_points={
