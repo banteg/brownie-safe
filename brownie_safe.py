@@ -1,11 +1,11 @@
+import os
+import warnings
 from copy import copy
-from typing import Dict, List, Union, Optional
+from typing import Dict, List, Optional, Union
 from urllib.parse import urljoin
 
 import click
-import os
 import requests
-from web3 import Web3  # don't move below brownie import
 from brownie import Contract, accounts, chain, history, web3
 from brownie.convert.datatypes import EthAddress
 from brownie.network.account import LocalAccount
@@ -18,10 +18,11 @@ from gnosis.safe.multi_send import MultiSend, MultiSendOperation, MultiSendTx
 from gnosis.safe.safe_tx import SafeTx
 from gnosis.safe.signatures import signature_split, signature_to_bytes
 from hexbytes import HexBytes
-from trezorlib import tools, ui, ethereum
+from trezorlib import ethereum, tools, ui
 from trezorlib.client import TrezorClient
 from trezorlib.messages import EthereumSignMessage
 from trezorlib.transport import get_transport
+from web3 import Web3  # don't move below brownie import
 
 MULTISEND_CALL_ONLY = '0x40A2aCCbd92BCA938b02010E17A5b8929b49130D'
 multisends = {
@@ -45,6 +46,8 @@ transaction_service = {
     73799: 'https://safe-transaction-volta.safe.global',
     1313161554: 'https://safe-transaction-aurora.safe.global',
 }
+
+warnings.filterwarnings('ignore', 'The function signature for resolver.*')
 
 
 class ExecutionFailure(Exception):
@@ -80,14 +83,12 @@ class BrownieSafe(Safe):
         """
         return accounts.at(self.address, force=True)
 
-    def contract(self, address=None) -> Contract:
+    def contract(self, address) -> Contract:
         """
         Instantiate a Brownie Contract owned by Safe account.
         """
-        if address:
-            address = to_checksum_address(address) if is_address(address) else web3.ens.resolve(address)
-            return Contract(address, owner=self.account)
-        return Safe.contract if hasattr(Safe, 'contract') else Safe.get_contract
+        address = to_checksum_address(address) if is_address(address) else web3.ens.resolve(address)
+        return Contract(address, owner=self.account)
 
     def pending_nonce(self) -> int:
         """
@@ -305,7 +306,7 @@ class BrownieSafe(Safe):
 
     def preview_tx(self, safe_tx: SafeTx, events=True, call_trace=False) -> TransactionReceipt:
         tx = copy(safe_tx)
-        safe = Contract.from_abi('Gnosis Safe', self.address, self.contract.abi)
+        safe = Contract.from_abi('Gnosis Safe', self.address, self.get_contract().abi)
         # Replace pending nonce with the subsequent nonce, this could change the safe_tx_hash
         tx.safe_nonce = safe.nonce()
         # Forge signatures from the needed amount of owners, skip the one which submits the tx
