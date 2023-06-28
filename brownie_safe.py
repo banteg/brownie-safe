@@ -6,7 +6,6 @@ from urllib.parse import urljoin
 
 import click
 from gnosis.eth.ethereum_client import EthereumClient, EthereumNetwork
-import requests
 from web3 import Web3  # don't move below brownie import
 from brownie import Contract, accounts, chain, history, web3
 from brownie.convert.datatypes import EthAddress
@@ -367,6 +366,7 @@ class BrownieSafe(Safe):
         # Requesting accounts triggers a connection prompt
         frame = Web3(Web3.HTTPProvider(frame_rpc, {'timeout': 600}))
         account = frame.eth.accounts[0]
+        frame.manager.request_blocking('wallet_switchEthereumChain', [{'chainId': hex(chain.id)}])
         payload = safe_tx.w3_tx.buildTransaction()
         tx = {
             "from": account,
