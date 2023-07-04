@@ -97,6 +97,9 @@ class BrownieSafe(Safe):
         self.transaction_service = TransactionServiceBackport(ethereum_client.get_network(), ethereum_client, base_url)
         self.multisend = multisend or multisends.get(chain.id, MULTISEND_CALL_ONLY)
         super().__init__(address, ethereum_client)
+        print(web3.clientVersion)
+        if web3.clientVersion.startswith('anvil'):
+            web3.manager.request_blocking('anvil_setNextBlockBaseFeePerGas', ['0x0'])
 
     def __str__(self):
         return EthAddress(self.address)
@@ -306,6 +309,16 @@ class BrownieSafe(Safe):
         """
         return self.estimate_tx_gas(safe_tx.to, safe_tx.value, safe_tx.data, safe_tx.operation)
 
+    @property
+    def supports_set_storage(self):
+        return re.search(r'^anvil', web3.clientVersion)
+
+    def set_storage(self, account: str, slot: int, value: int):
+        if web3.clientVersion.startswith('anvil'):
+            web3.manager.request_blocking('anvil_setStorageAt', [account, hex(slot), encode_hex(encode_abi(['uint'], [value]))])
+        else:
+            raise NotImplementedError(f'setting storage is not supported for {web3.clientVersion}')
+
     def preview_tx(self, safe_tx: SafeTx, events=True, call_trace=False) -> TransactionReceipt:
         tx = copy(safe_tx)
         safe = Contract.from_abi('Gnosis Safe', self.address, self.get_contract().abi)
@@ -323,6 +336,19 @@ class BrownieSafe(Safe):
         # Pre-validated signatures are encoded as r=owner, s unused and v=1.
         # https://docs.gnosis.io/safe/docs/contracts_signatures/#pre-validated-signatures
         tx.signatures = b''.join([encode_abi(['address', 'uint'], [str(owner), 0]) + b'\x01' for owner in owners])
+        # If we can just overwrite threshold, we don't need to send approveHash transactions
+        if self.supports_set_storage:
+            print('fast mode')
+            # self.set_storage(tx.safe_address, 4, 1)
+            for owner in owners[:threshold]:
+                # approved hashes is slot 8 of type mapping(address => mapping(bytes32 => uint256))
+                outer_key = keccak(encode_abi(['address', 'uint'], [str(owner), 8]))
+                slot = int.from_bytes(keccak(tx.safe_tx_hash + outer_key), 'big')
+                self.set_storage(tx.safe_address, slot, 1)
+        else:
+            for owner in owners[:threshold]:
+                safe.approveHash(tx.safe_tx_hash, {'from': owner})
+
         payload = tx.w3_tx.buildTransaction()
         receipt = owners[0].transfer(payload['to'], payload['value'], gas_limit=payload['gas'], data=payload['data'])
 
