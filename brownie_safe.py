@@ -11,7 +11,7 @@ from brownie.convert.datatypes import EthAddress
 from brownie.network.account import LocalAccount
 from brownie.network.transaction import TransactionReceipt
 from eth_abi import encode_abi
-from eth_utils import is_address, to_checksum_address
+from eth_utils import is_address, to_checksum_address, encode_hex, keccak
 from gnosis.safe import Safe, SafeOperation
 from gnosis.safe.multi_send import MultiSend, MultiSendOperation, MultiSendTx
 from gnosis.safe.safe_tx import SafeTx
@@ -97,7 +97,6 @@ class BrownieSafe(Safe):
         self.transaction_service = TransactionServiceBackport(ethereum_client.get_network(), ethereum_client, base_url)
         self.multisend = multisend or multisends.get(chain.id, MULTISEND_CALL_ONLY)
         super().__init__(address, ethereum_client)
-        print(web3.clientVersion)
         if web3.clientVersion.startswith('anvil'):
             web3.manager.request_blocking('anvil_setNextBlockBaseFeePerGas', ['0x0'])
 
@@ -309,13 +308,13 @@ class BrownieSafe(Safe):
         """
         return self.estimate_tx_gas(safe_tx.to, safe_tx.value, safe_tx.data, safe_tx.operation)
 
-    @property
-    def supports_set_storage(self):
-        return re.search(r'^anvil', web3.clientVersion)
-
     def set_storage(self, account: str, slot: int, value: int):
+        params = [account, hex(slot), encode_hex(encode_abi(['uint'], [value]))]
+
         if web3.clientVersion.startswith('anvil'):
-            web3.manager.request_blocking('anvil_setStorageAt', [account, hex(slot), encode_hex(encode_abi(['uint'], [value]))])
+            web3.manager.request_blocking('anvil_setStorageAt', params)
+        elif web3.clientVersion.startswith('Hardhat'):
+            web3.manager.request_blocking('hardhat_setStorageAt', params)
         else:
             raise NotImplementedError(f'setting storage is not supported for {web3.clientVersion}')
 
@@ -329,25 +328,16 @@ class BrownieSafe(Safe):
         threshold = safe.getThreshold()
         sorted_owners = sorted(safe.getOwners(), key=lambda x: int(x, 16))
         owners = [accounts.at(owner, force=True) for owner in sorted_owners[:threshold]]
-        for owner in owners:
-            safe.approveHash(tx.safe_tx_hash, {'from': owner})
-
         # Signautres are encoded as [bytes32 r, bytes32 s, bytes8 v]
         # Pre-validated signatures are encoded as r=owner, s unused and v=1.
         # https://docs.gnosis.io/safe/docs/contracts_signatures/#pre-validated-signatures
         tx.signatures = b''.join([encode_abi(['address', 'uint'], [str(owner), 0]) + b'\x01' for owner in owners])
-        # If we can just overwrite threshold, we don't need to send approveHash transactions
-        if self.supports_set_storage:
-            print('fast mode')
-            # self.set_storage(tx.safe_address, 4, 1)
-            for owner in owners[:threshold]:
-                # approved hashes is slot 8 of type mapping(address => mapping(bytes32 => uint256))
-                outer_key = keccak(encode_abi(['address', 'uint'], [str(owner), 8]))
-                slot = int.from_bytes(keccak(tx.safe_tx_hash + outer_key), 'big')
-                self.set_storage(tx.safe_address, slot, 1)
-        else:
-            for owner in owners[:threshold]:
-                safe.approveHash(tx.safe_tx_hash, {'from': owner})
+
+        # approvedHashes are in slot 8 and have type of mapping(address => mapping(bytes32 => uint256))
+        for owner in owners[:threshold]:
+            outer_key = keccak(encode_abi(['address', 'uint'], [str(owner), 8]))
+            slot = int.from_bytes(keccak(tx.safe_tx_hash + outer_key), 'big')
+            self.set_storage(tx.safe_address, slot, 1)
 
         payload = tx.w3_tx.buildTransaction()
         receipt = owners[0].transfer(payload['to'], payload['value'], gas_limit=payload['gas'], data=payload['data'])
