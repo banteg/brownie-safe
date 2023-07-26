@@ -2,6 +2,7 @@ import os
 import warnings
 from copy import copy
 from typing import Dict, List, Optional, Union
+from enum import Enum
 
 import click
 from gnosis.eth import EthereumClient, EthereumNetwork
@@ -17,13 +18,12 @@ from gnosis.safe.multi_send import MultiSend, MultiSendOperation, MultiSendTx
 from gnosis.safe.safe_tx import SafeTx
 from gnosis.safe.signatures import signature_split, signature_to_bytes
 from gnosis.safe.api import TransactionServiceApi
+from gnosis.eth.ethereum_client import EthereumNetworkNotSupported
 from hexbytes import HexBytes
 from trezorlib import ethereum, tools, ui
 from trezorlib.client import TrezorClient
 from trezorlib.messages import EthereumSignMessage
 from trezorlib.transport import get_transport
-from enum import Enum
-from gnosis.eth.ethereum_client import EthereumNetworkNotSupported
 
 MULTISEND_CALL_ONLY = '0x40A2aCCbd92BCA938b02010E17A5b8929b49130D'
 multisends = {
@@ -67,7 +67,7 @@ class TransactionServiceBackport(TransactionServiceApi):
         EthereumNetworkBackport.BOBA_NETWORK: "https://safe-transaction.mainnet.boba.network",
     }
 
-    def __init__(self, network: EthereumNetwork, ethereum_client: EthereumClient | None = None, base_url: str | None = None):
+    def __init__(self, network: EthereumNetwork, ethereum_client: Optional[EthereumClient] = None, base_url: Optional[str] = None):
         self.network = network
         self.ethereum_client = ethereum_client
         self.base_url = base_url or self.URL_BY_NETWORK.get(EthereumNetworkBackport(network.value))
