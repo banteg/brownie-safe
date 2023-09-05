@@ -38,6 +38,7 @@ class EthereumNetworkBackport(Enum):
     ARBITRUM_ONE = 42161
     AURORA_MAINNET = 1313161554
     AVALANCHE_C_CHAIN = 43114
+    BASE = 8453
     BINANCE_SMART_CHAIN_MAINNET = 56
     ENERGY_WEB_CHAIN = 246
     GOERLI = 5
@@ -55,6 +56,7 @@ class TransactionServiceBackport(TransactionServiceApi):
         EthereumNetworkBackport.ARBITRUM_ONE: "https://safe-transaction-arbitrum.safe.global",
         EthereumNetworkBackport.AURORA_MAINNET: "https://safe-transaction-aurora.safe.global",
         EthereumNetworkBackport.AVALANCHE_C_CHAIN: "https://safe-transaction-avalanche.safe.global",
+        EthereumNetworkBackport.BASE: "https://safe-transaction-base.safe.global/",
         EthereumNetworkBackport.BINANCE_SMART_CHAIN_MAINNET: "https://safe-transaction-bsc.safe.global",
         EthereumNetworkBackport.ENERGY_WEB_CHAIN: "https://safe-transaction-ewc.safe.global",
         EthereumNetworkBackport.GOERLI: "https://safe-transaction-goerli.safe.global",
