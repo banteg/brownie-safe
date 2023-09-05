@@ -1,9 +1,9 @@
 import os
+import re
 import warnings
 from copy import copy
 from typing import Dict, List, Optional, Union
 from enum import Enum
-
 import click
 from gnosis.eth import EthereumClient, EthereumNetwork
 from web3 import Web3  # don't move below brownie import
@@ -24,6 +24,7 @@ from trezorlib import ethereum, tools, ui
 from trezorlib.client import TrezorClient
 from trezorlib.messages import EthereumSignMessage
 from trezorlib.transport import get_transport
+from functools import cached_property
 
 MULTISEND_CALL_ONLY = '0x40A2aCCbd92BCA938b02010E17A5b8929b49130D'
 multisends = {
@@ -105,6 +106,11 @@ class BrownieSafe(Safe):
 
     def __repr__(self):
         return f'BrownieSafe("{self.address}")'
+
+    @cached_property
+    def client(self):
+        match = re.search('(anvil|hardhat|ganache)', web3.clientVersion.lower())
+        return match.group(1)
 
     @property
     def account(self) -> LocalAccount:
