@@ -98,7 +98,7 @@ class BrownieSafe(Safe):
         self.transaction_service = TransactionServiceBackport(ethereum_client.get_network(), ethereum_client, base_url)
         self.multisend = multisend or multisends.get(chain.id, MULTISEND_CALL_ONLY)
         super().__init__(address, ethereum_client)
-        if web3.clientVersion.startswith('anvil'):
+        if self.client == 'anvil':
             web3.manager.request_blocking('anvil_setNextBlockBaseFeePerGas', ['0x0'])
 
     def __str__(self):
@@ -316,13 +316,12 @@ class BrownieSafe(Safe):
 
     def set_storage(self, account: str, slot: int, value: int):
         params = [account, hex(slot), encode_hex(encode_abi(['uint'], [value]))]
-
-        if web3.clientVersion.startswith('anvil'):
-            web3.manager.request_blocking('anvil_setStorageAt', params)
-        elif web3.clientVersion.startswith('Hardhat'):
-            web3.manager.request_blocking('hardhat_setStorageAt', params)
-        else:
-            raise NotImplementedError(f'setting storage is not supported for {web3.clientVersion}')
+        method = {
+            'anvil': 'anvil_setStorageAt',
+            'hardhat': 'hardhat_setStorageAt',
+            'ganache': 'evm_setAccountStorageAt',
+        }
+        web3.manager.request_blocking(method[self.client], params)
 
     def preview_tx(self, safe_tx: SafeTx, events=True, call_trace=False) -> TransactionReceipt:
         tx = copy(safe_tx)
