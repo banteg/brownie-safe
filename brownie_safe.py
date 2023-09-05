@@ -41,6 +41,7 @@ class EthereumNetworkBackport(Enum):
     BASE = 8453
     BASE_GOERLI = 84531
     BINANCE_SMART_CHAIN_MAINNET = 56
+    CELO = 42220
     ENERGY_WEB_CHAIN = 246
     GOERLI = 5
     MAINNET = 1
@@ -60,6 +61,7 @@ class TransactionServiceBackport(TransactionServiceApi):
         EthereumNetworkBackport.BASE: "https://safe-transaction-base.safe.global/",
         EthereumNetworkBackport.BASE_GOERLI: "https://safe-transaction-base-testnet.safe.global/",
         EthereumNetworkBackport.BINANCE_SMART_CHAIN_MAINNET: "https://safe-transaction-bsc.safe.global",
+        EthereumNetworkBackport.CELO: "https://safe-transaction-celo.safe.global/",
         EthereumNetworkBackport.ENERGY_WEB_CHAIN: "https://safe-transaction-ewc.safe.global",
         EthereumNetworkBackport.GOERLI: "https://safe-transaction-goerli.safe.global",
         EthereumNetworkBackport.MAINNET: "https://safe-transaction-mainnet.safe.global",
