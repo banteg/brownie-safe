@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "brownie-safe"
-version = "0.8.2"
+version = "0.8.3"
 description = "Build complex Gnosis Safe transactions and safely preview them in a forked environment."
 authors = ["banteg"]
 license = "MIT"
