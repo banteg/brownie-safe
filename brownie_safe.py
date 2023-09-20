@@ -26,14 +26,6 @@ from trezorlib.messages import EthereumSignMessage
 from trezorlib.transport import get_transport
 from functools import cached_property
 
-MULTISEND_CALL_ONLY = '0x40A2aCCbd92BCA938b02010E17A5b8929b49130D'
-multisends = {
-    10: '0x998739BFdAAdde7C933B942a68053933098f9EDa',
-    250: '0x10B62CC1E8D9a9f1Ad05BCC491A7984697c19f7E',
-    288: '0x2Bd65cd56cAAC777f87d7808d13DEAF88e54E0eA',
-    43114: '0x998739BFdAAdde7C933B942a68053933098f9EDa'
-}
-
 
 class EthereumNetworkBackport(Enum):
     ARBITRUM_ONE = 42161
@@ -53,6 +45,20 @@ class EthereumNetworkBackport(Enum):
     FANTOM = 250
     BOBA_NETWORK = 288
 
+
+# MultiSendCallOnly doesn't allow delegatecalls
+# https://github.com/safe-global/safe-deployments/blob/main/src/assets/v1.3.0/multi_send_call_only.json
+DEFAULT_MULTISEND_CALL_ONLY = "0x40A2aCCbd92BCA938b02010E17A5b8929b49130D"
+ALT_MULTISEND_CALL_ONLY = "0xA1dabEF33b3B82c7814B6D82A79e50F4AC44102B"
+CUSTOM_MULTISENDS = {
+    EthereumNetworkBackport.FANTOM: "0x10B62CC1E8D9a9f1Ad05BCC491A7984697c19f7E",
+    EthereumNetworkBackport.OPTIMISM: ALT_MULTISEND_CALL_ONLY,
+    EthereumNetworkBackport.BOBA_NETWORK: ALT_MULTISEND_CALL_ONLY,
+    EthereumNetworkBackport.BASE: ALT_MULTISEND_CALL_ONLY,
+    EthereumNetworkBackport.CELO: ALT_MULTISEND_CALL_ONLY,
+    EthereumNetworkBackport.AVALANCHE_C_CHAIN: ALT_MULTISEND_CALL_ONLY,
+    EthereumNetworkBackport.BASE_GOERLI: ALT_MULTISEND_CALL_ONLY,
+}
 
 class TransactionServiceBackport(TransactionServiceApi):
     URL_BY_NETWORK = {
@@ -102,7 +108,7 @@ class BrownieSafe(Safe):
         address = to_checksum_address(address) if is_address(address) else web3.ens.resolve(address)
         ethereum_client = EthereumClient(web3.provider.endpoint_uri)
         self.transaction_service = TransactionServiceBackport(ethereum_client.get_network(), ethereum_client, base_url)
-        self.multisend = multisend or multisends.get(chain.id, MULTISEND_CALL_ONLY)
+        self.multisend = multisend or CUSTOM_MULTISENDS.get(chain.id, DEFAULT_MULTISEND_CALL_ONLY)
         super().__init__(address, ethereum_client)
         if self.client == 'anvil':
             web3.manager.request_blocking('anvil_setNextBlockBaseFeePerGas', ['0x0'])
