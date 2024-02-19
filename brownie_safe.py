@@ -1,8 +1,9 @@
 import os
+import re
 import warnings
 from copy import copy
 from typing import Dict, List, Optional, Union
-
+from enum import Enum
 import click
 from gnosis.eth import EthereumClient, EthereumNetwork
 from web3 import Web3  # don't move below brownie import
@@ -11,34 +12,29 @@ from brownie.convert.datatypes import EthAddress
 from brownie.network.account import LocalAccount
 from brownie.network.transaction import TransactionReceipt
 from eth_abi import encode_abi
-from eth_utils import is_address, to_checksum_address
+from eth_utils import is_address, to_checksum_address, encode_hex, keccak
 from gnosis.safe import Safe, SafeOperation
 from gnosis.safe.multi_send import MultiSend, MultiSendOperation, MultiSendTx
 from gnosis.safe.safe_tx import SafeTx
 from gnosis.safe.signatures import signature_split, signature_to_bytes
 from gnosis.safe.api import TransactionServiceApi
+from gnosis.eth.ethereum_client import EthereumNetworkNotSupported
 from hexbytes import HexBytes
 from trezorlib import ethereum, tools, ui
 from trezorlib.client import TrezorClient
 from trezorlib.messages import EthereumSignMessage
 from trezorlib.transport import get_transport
-from enum import Enum
-from gnosis.eth.ethereum_client import EthereumNetworkNotSupported
-
-MULTISEND_CALL_ONLY = '0x40A2aCCbd92BCA938b02010E17A5b8929b49130D'
-multisends = {
-    10: '0x998739BFdAAdde7C933B942a68053933098f9EDa',
-    250: '0x10B62CC1E8D9a9f1Ad05BCC491A7984697c19f7E',
-    288: '0x2Bd65cd56cAAC777f87d7808d13DEAF88e54E0eA',
-    43114: '0x998739BFdAAdde7C933B942a68053933098f9EDa'
-}
+from functools import cached_property
 
 
 class EthereumNetworkBackport(Enum):
     ARBITRUM_ONE = 42161
     AURORA_MAINNET = 1313161554
     AVALANCHE_C_CHAIN = 43114
+    BASE = 8453
+    BASE_GOERLI = 84531
     BINANCE_SMART_CHAIN_MAINNET = 56
+    CELO = 42220
     ENERGY_WEB_CHAIN = 246
     GOERLI = 5
     MAINNET = 1
@@ -50,12 +46,29 @@ class EthereumNetworkBackport(Enum):
     BOBA_NETWORK = 288
 
 
+# MultiSendCallOnly doesn't allow delegatecalls
+# https://github.com/safe-global/safe-deployments/blob/main/src/assets/v1.3.0/multi_send_call_only.json
+DEFAULT_MULTISEND_CALL_ONLY = "0x40A2aCCbd92BCA938b02010E17A5b8929b49130D"
+ALT_MULTISEND_CALL_ONLY = "0xA1dabEF33b3B82c7814B6D82A79e50F4AC44102B"
+CUSTOM_MULTISENDS = {
+    EthereumNetworkBackport.FANTOM: "0x10B62CC1E8D9a9f1Ad05BCC491A7984697c19f7E",
+    EthereumNetworkBackport.OPTIMISM: ALT_MULTISEND_CALL_ONLY,
+    EthereumNetworkBackport.BOBA_NETWORK: ALT_MULTISEND_CALL_ONLY,
+    EthereumNetworkBackport.BASE: ALT_MULTISEND_CALL_ONLY,
+    EthereumNetworkBackport.CELO: ALT_MULTISEND_CALL_ONLY,
+    EthereumNetworkBackport.AVALANCHE_C_CHAIN: ALT_MULTISEND_CALL_ONLY,
+    EthereumNetworkBackport.BASE_GOERLI: ALT_MULTISEND_CALL_ONLY,
+}
+
 class TransactionServiceBackport(TransactionServiceApi):
     URL_BY_NETWORK = {
         EthereumNetworkBackport.ARBITRUM_ONE: "https://safe-transaction-arbitrum.safe.global",
         EthereumNetworkBackport.AURORA_MAINNET: "https://safe-transaction-aurora.safe.global",
         EthereumNetworkBackport.AVALANCHE_C_CHAIN: "https://safe-transaction-avalanche.safe.global",
+        EthereumNetworkBackport.BASE: "https://safe-transaction-base.safe.global",
+        EthereumNetworkBackport.BASE_GOERLI: "https://safe-transaction-base-testnet.safe.global",
         EthereumNetworkBackport.BINANCE_SMART_CHAIN_MAINNET: "https://safe-transaction-bsc.safe.global",
+        EthereumNetworkBackport.CELO: "https://safe-transaction-celo.safe.global",
         EthereumNetworkBackport.ENERGY_WEB_CHAIN: "https://safe-transaction-ewc.safe.global",
         EthereumNetworkBackport.GOERLI: "https://safe-transaction-goerli.safe.global",
         EthereumNetworkBackport.MAINNET: "https://safe-transaction-mainnet.safe.global",
@@ -67,7 +80,7 @@ class TransactionServiceBackport(TransactionServiceApi):
         EthereumNetworkBackport.BOBA_NETWORK: "https://safe-transaction.mainnet.boba.network",
     }
 
-    def __init__(self, network: EthereumNetwork, ethereum_client: EthereumClient | None = None, base_url: str | None = None):
+    def __init__(self, network: EthereumNetwork, ethereum_client: Optional[EthereumClient] = None, base_url: Optional[str] = None):
         self.network = network
         self.ethereum_client = ethereum_client
         self.base_url = base_url or self.URL_BY_NETWORK.get(EthereumNetworkBackport(network.value))
@@ -95,14 +108,21 @@ class BrownieSafe(Safe):
         address = to_checksum_address(address) if is_address(address) else web3.ens.resolve(address)
         ethereum_client = EthereumClient(web3.provider.endpoint_uri)
         self.transaction_service = TransactionServiceBackport(ethereum_client.get_network(), ethereum_client, base_url)
-        self.multisend = multisend or multisends.get(chain.id, MULTISEND_CALL_ONLY)
+        self.multisend = multisend or CUSTOM_MULTISENDS.get(EthereumNetworkBackport(chain.id), DEFAULT_MULTISEND_CALL_ONLY)
         super().__init__(address, ethereum_client)
+        if self.client == 'anvil':
+            web3.manager.request_blocking('anvil_setNextBlockBaseFeePerGas', ['0x0'])
 
     def __str__(self):
         return EthAddress(self.address)
 
     def __repr__(self):
         return f'BrownieSafe("{self.address}")'
+
+    @cached_property
+    def client(self):
+        match = re.search('(anvil|hardhat|ganache)', web3.clientVersion.lower())
+        return match.group(1)
 
     @property
     def account(self) -> LocalAccount:
@@ -306,6 +326,15 @@ class BrownieSafe(Safe):
         """
         return self.estimate_tx_gas(safe_tx.to, safe_tx.value, safe_tx.data, safe_tx.operation)
 
+    def set_storage(self, account: str, slot: int, value: int):
+        params = [account, hex(slot), encode_hex(encode_abi(['uint'], [value]))]
+        method = {
+            'anvil': 'anvil_setStorageAt',
+            'hardhat': 'hardhat_setStorageAt',
+            'ganache': 'evm_setAccountStorageAt',
+        }
+        web3.manager.request_blocking(method[self.client], params)
+
     def preview_tx(self, safe_tx: SafeTx, events=True, call_trace=False) -> TransactionReceipt:
         tx = copy(safe_tx)
         safe = Contract.from_abi('Gnosis Safe', self.address, self.get_contract().abi)
@@ -316,13 +345,17 @@ class BrownieSafe(Safe):
         threshold = safe.getThreshold()
         sorted_owners = sorted(safe.getOwners(), key=lambda x: int(x, 16))
         owners = [accounts.at(owner, force=True) for owner in sorted_owners[:threshold]]
-        for owner in owners:
-            safe.approveHash(tx.safe_tx_hash, {'from': owner})
-
         # Signautres are encoded as [bytes32 r, bytes32 s, bytes8 v]
         # Pre-validated signatures are encoded as r=owner, s unused and v=1.
         # https://docs.gnosis.io/safe/docs/contracts_signatures/#pre-validated-signatures
         tx.signatures = b''.join([encode_abi(['address', 'uint'], [str(owner), 0]) + b'\x01' for owner in owners])
+
+        # approvedHashes are in slot 8 and have type of mapping(address => mapping(bytes32 => uint256))
+        for owner in owners[:threshold]:
+            outer_key = keccak(encode_abi(['address', 'uint'], [str(owner), 8]))
+            slot = int.from_bytes(keccak(tx.safe_tx_hash + outer_key), 'big')
+            self.set_storage(tx.safe_address, slot, 1)
+
         payload = tx.w3_tx.buildTransaction()
         receipt = owners[0].transfer(payload['to'], payload['value'], gas_limit=payload['gas'], data=payload['data'])
 
