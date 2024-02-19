@@ -1,9 +1,10 @@
 from copy import copy
-from typing import List, Union
+from typing import Dict, List, Union, Optional
 from urllib.parse import urljoin
 
 import click
 import requests
+from web3 import Web3  # don't move below brownie import
 from brownie import Contract, accounts, chain, history, web3
 from brownie.convert.datatypes import EthAddress
 from brownie.network.account import LocalAccount
@@ -13,7 +14,8 @@ from gnosis.eth import EthereumClient
 from gnosis.safe import Safe, SafeOperation
 from gnosis.safe.multi_send import MultiSend, MultiSendOperation, MultiSendTx
 from gnosis.safe.safe_tx import SafeTx
-
+from gnosis.safe.signatures import signature_split, signature_to_bytes
+from hexbytes import HexBytes
 
 MULTISEND_CALL_ONLY = '0x40A2aCCbd92BCA938b02010E17A5b8929b49130D'
 transaction_service = {
@@ -100,10 +102,7 @@ class ApeSafe(Safe):
         data = MultiSend(self.multisend, self.ethereum_client).build_tx_data(txs)
         return self.build_multisig_tx(self.multisend, 0, data, SafeOperation.DELEGATE_CALL.value, safe_nonce=safe_nonce)
 
-    def sign_transaction(self, safe_tx: SafeTx, signer: Union[LocalAccount, str] = None) -> SafeTx:
-        """
-        Sign a Safe transaction with a local Brownie account.
-        """
+    def get_signer(self, signer: Optional[Union[LocalAccount, str]] = None) -> LocalAccount:
         if signer is None:
             signer = click.prompt('signer', type=click.Choice(accounts.load()))
         
@@ -112,13 +111,44 @@ class ApeSafe(Safe):
             accounts.clear()
             signer = accounts.load(signer)
         
-        safe_tx.sign(signer.private_key)
-        return safe_tx
+        assert isinstance(signer, LocalAccount), 'Signer must be a name of brownie account or LocalAccount'
+        return signer
+
+    def sign_transaction(self, safe_tx: SafeTx, signer=None) -> SafeTx:
+        """
+        Sign a Safe transaction with a private key account.
+        """
+        signer = self.get_signer(signer)
+        return safe_tx.sign(signer.private_key)
+
+    def sign_with_frame(self, safe_tx: SafeTx, frame_rpc="http://127.0.0.1:1248") -> bytes:
+        """
+        Sign a Safe transaction using Frame. Use this option with hardware wallets.
+        """
+        # Requesting accounts triggers a connection prompt
+        frame = Web3(Web3.HTTPProvider(frame_rpc, {'timeout': 600}))
+        account = frame.eth.accounts[0]
+        signature = frame.manager.request_blocking('eth_signTypedData_v4', [account, safe_tx.eip712_structured_data])
+        # Convert to a format expected by Gnosis Safe
+        v, r, s = signature_split(signature)
+        # Ledger doesn't support EIP-155
+        if v in {0, 1}:
+            v += 27
+        signature = signature_to_bytes(v, r, s)
+        if account not in safe_tx.signers:
+            new_owners = safe_tx.signers + [account]
+            new_owner_pos = sorted(new_owners, key=lambda x: int(x, 16)).index(account)
+            safe_tx.signatures = (
+                safe_tx.signatures[: 65 * new_owner_pos]
+                + signature
+                + safe_tx.signatures[65 * new_owner_pos :]
+            )
+        return signature
 
     def post_transaction(self, safe_tx: SafeTx):
         """
         Submit a Safe transaction to a transaction service.
-        Estimates gas cost and prompts for a signature if needed.
+        Prompts for a signature if needed.
 
         See also https://github.com/gnosis/safe-cli/blob/master/safe_cli/api/gnosis_transaction.py
         """
@@ -146,7 +176,51 @@ class ApeSafe(Safe):
         }
         response = requests.post(url, json=data)
         if not response.ok:
-            raise ApiError(f'Error posting transaction: {response.content}')
+            raise ApiError(f'Error posting transaction: {response.text}')
+
+    def post_signature(self, safe_tx: SafeTx, signature: bytes):
+        """
+        Submit a confirmation signature to a transaction service.
+        """
+        url = urljoin(self.base_url, f'/api/v1/multisig-transactions/{safe_tx.safe_tx_hash.hex()}/confirmations/')
+        response = requests.post(url, json={'signature': HexBytes(signature).hex()})
+        if not response.ok:
+            raise ApiError(f'Error posting signature: {response.text}')
+
+    @property
+    def pending_transactions(self) -> List[SafeTx]:
+        """
+        Retrieve pending transactions from the transaction service.
+        """
+        url = urljoin(self.base_url, f'/api/v1/safes/{self.address}/transactions/')
+        results = requests.get(url).json()['results']
+        nonce = self.retrieve_nonce()
+        transactions = [
+            self.build_multisig_tx(
+                to=tx['to'],
+                value=int(tx['value']),
+                data=HexBytes(tx['data']),
+                operation=tx['operation'],
+                safe_tx_gas=tx['safeTxGas'],
+                base_gas=tx['baseGas'],
+                gas_price=int(tx['gasPrice']),
+                gas_token=tx['gasToken'],
+                refund_receiver=tx['refundReceiver'],
+                signatures=self.confirmations_to_signatures(tx['confirmations']),
+                safe_nonce=tx['nonce'],
+            )
+            for tx in reversed(results)
+            if tx['nonce'] >= nonce and not tx['isExecuted']
+        ]
+        return transactions
+
+    def confirmations_to_signatures(self, confirmations: List[Dict]) -> bytes:
+        """
+        Convert confirmations as returned by the transaction service to combined signatures.
+        """
+        sorted_confirmations = sorted(confirmations, key=lambda conf: int(conf['owner'], 16))
+        signatures = [bytes(HexBytes(conf['signature'])) for conf in sorted_confirmations]
+        return b''.join(signatures)
 
     def estimate_gas(self, safe_tx: SafeTx) -> int:
         """
@@ -174,21 +248,10 @@ class ApeSafe(Safe):
         # Signautres are encoded as [bytes32 r, bytes32 s, bytes8 v]
         # Pre-validated signatures are encoded as r=owner, s unused and v=1.
         # https://docs.gnosis.io/safe/docs/contracts_signatures/#pre-validated-signatures
-        signatures = b''.join([encode_abi(['address', 'uint'], [str(owner), 0]) + b'\x01' for owner in owners[:threshold]])
-        args = [
-            tx.to,
-            tx.value,
-            tx.data,
-            tx.operation,
-            tx.safe_tx_gas,
-            tx.base_gas,
-            tx.gas_price,
-            tx.gas_token,
-            tx.refund_receiver,
-            signatures,
-        ]
-
-        receipt = safe.execTransaction(*args, {'from': owners[0], 'gas_price': 0, 'gas_limit': gas_limit})
+        tx.signatures = b''.join([encode_abi(['address', 'uint'], [str(owner), 0]) + b'\x01' for owner in owners[:threshold]])
+        tx = safe_tx.w3_tx.buildTransaction()
+        receipt = owners[0].transfer(tx['to'], tx['value'], gas_limit=tx['gas'], data=tx['data'])
+        
         if 'ExecutionSuccess' not in receipt.events:
             receipt.info()
             receipt.call_trace(True)
@@ -207,15 +270,18 @@ class ApeSafe(Safe):
 
         return receipt
 
+    def execute_transaction(self, safe_tx: SafeTx, signer=None) -> TransactionReceipt:
+        """
+        Execute a fully signed transaction likely retrieved from the pending_transactions method.
+        """
+        tx = safe_tx.w3_tx.buildTransaction()
+        signer = self.get_signer(signer)
+        receipt = signer.transfer(tx['to'], tx['value'], gas_limit=tx['gas'], data=tx['data'])
+        return receipt
+
     def preview_pending(self, events=True, call_trace=False):
         """
         Dry run all pending transactions in a forked environment.
         """
-        safe = Contract.from_abi('Gnosis Safe', self.address, self.get_contract().abi)
-        url = urljoin(self.base_url, f'/api/v1/safes/{self.address}/transactions/')
-        txs = requests.get(url).json()['results']
-        nonce = safe.nonce()
-        pending = [tx for tx in reversed(txs) if not tx['isExecuted'] and tx['nonce'] >= nonce]
-        for tx in pending:
-            safe_tx = self.build_multisig_tx(tx['to'], int(tx['value']), tx['data'] or b'', operation=tx['operation'], safe_nonce=tx['nonce'])
+        for safe_tx in self.pending_transactions:
             self.preview(safe_tx, events=events, call_trace=call_trace, reset=False)
