@@ -1,0 +1,36 @@
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.2.0
+    hooks:
+    -   id: check-yaml
+
+-   repo: https://github.com/pre-commit/mirrors-isort
+    rev: v5.10.1
+    hooks:
+      - id: isort
+
+-   repo: https://github.com/psf/black
+    rev: 23.1.0
+    hooks:
+      - id: black
+        name: black
+
+-   repo: https://github.com/pycqa/flake8
+    rev: 6.0.0
+    hooks:
+    -   id: flake8
+
+-   repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v0.991
+    hooks:
+    -   id: mypy
+        additional_dependencies: [types-setuptools, pydantic]
+
+-   repo: https://github.com/executablebooks/mdformat
+    rev: 0.7.14
+    hooks:
+    -   id: mdformat
+        additional_dependencies: [mdformat-gfm, mdformat-frontmatter]
+
+default_language_version:
+    python: python3

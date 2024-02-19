@@ -1,9 +1,9 @@
 import os
+import re
 import warnings
 from copy import copy
 from typing import Dict, List, Optional, Union
 from enum import Enum
-
 import click
 from gnosis.eth import EthereumClient, EthereumNetwork
 from web3 import Web3  # don't move below brownie import
@@ -24,14 +24,7 @@ from trezorlib import ethereum, tools, ui
 from trezorlib.client import TrezorClient
 from trezorlib.messages import EthereumSignMessage
 from trezorlib.transport import get_transport
-
-MULTISEND_CALL_ONLY = '0x40A2aCCbd92BCA938b02010E17A5b8929b49130D'
-multisends = {
-    10: '0x998739BFdAAdde7C933B942a68053933098f9EDa',
-    250: '0x10B62CC1E8D9a9f1Ad05BCC491A7984697c19f7E',
-    288: '0x2Bd65cd56cAAC777f87d7808d13DEAF88e54E0eA',
-    43114: '0x998739BFdAAdde7C933B942a68053933098f9EDa'
-}
+from functools import cached_property
 
 
 class EthereumNetworkBackport(Enum):
@@ -52,6 +45,20 @@ class EthereumNetworkBackport(Enum):
     FANTOM = 250
     BOBA_NETWORK = 288
 
+
+# MultiSendCallOnly doesn't allow delegatecalls
+# https://github.com/safe-global/safe-deployments/blob/main/src/assets/v1.3.0/multi_send_call_only.json
+DEFAULT_MULTISEND_CALL_ONLY = "0x40A2aCCbd92BCA938b02010E17A5b8929b49130D"
+ALT_MULTISEND_CALL_ONLY = "0xA1dabEF33b3B82c7814B6D82A79e50F4AC44102B"
+CUSTOM_MULTISENDS = {
+    EthereumNetworkBackport.FANTOM: "0x10B62CC1E8D9a9f1Ad05BCC491A7984697c19f7E",
+    EthereumNetworkBackport.OPTIMISM: ALT_MULTISEND_CALL_ONLY,
+    EthereumNetworkBackport.BOBA_NETWORK: ALT_MULTISEND_CALL_ONLY,
+    EthereumNetworkBackport.BASE: ALT_MULTISEND_CALL_ONLY,
+    EthereumNetworkBackport.CELO: ALT_MULTISEND_CALL_ONLY,
+    EthereumNetworkBackport.AVALANCHE_C_CHAIN: ALT_MULTISEND_CALL_ONLY,
+    EthereumNetworkBackport.BASE_GOERLI: ALT_MULTISEND_CALL_ONLY,
+}
 
 class TransactionServiceBackport(TransactionServiceApi):
     URL_BY_NETWORK = {
@@ -101,9 +108,9 @@ class BrownieSafe(Safe):
         address = to_checksum_address(address) if is_address(address) else web3.ens.resolve(address)
         ethereum_client = EthereumClient(web3.provider.endpoint_uri)
         self.transaction_service = TransactionServiceBackport(ethereum_client.get_network(), ethereum_client, base_url)
-        self.multisend = multisend or multisends.get(chain.id, MULTISEND_CALL_ONLY)
+        self.multisend = multisend or CUSTOM_MULTISENDS.get(EthereumNetworkBackport(chain.id), DEFAULT_MULTISEND_CALL_ONLY)
         super().__init__(address, ethereum_client)
-        if web3.clientVersion.startswith('anvil'):
+        if self.client == 'anvil':
             web3.manager.request_blocking('anvil_setNextBlockBaseFeePerGas', ['0x0'])
 
     def __str__(self):
@@ -111,6 +118,11 @@ class BrownieSafe(Safe):
 
     def __repr__(self):
         return f'BrownieSafe("{self.address}")'
+
+    @cached_property
+    def client(self):
+        match = re.search('(anvil|hardhat|ganache)', web3.clientVersion.lower())
+        return match.group(1)
 
     @property
     def account(self) -> LocalAccount:
@@ -316,13 +328,12 @@ class BrownieSafe(Safe):
 
     def set_storage(self, account: str, slot: int, value: int):
         params = [account, hex(slot), encode_hex(encode_abi(['uint'], [value]))]
-
-        if web3.clientVersion.startswith('anvil'):
-            web3.manager.request_blocking('anvil_setStorageAt', params)
-        elif web3.clientVersion.startswith('Hardhat'):
-            web3.manager.request_blocking('hardhat_setStorageAt', params)
-        else:
-            raise NotImplementedError(f'setting storage is not supported for {web3.clientVersion}')
+        method = {
+            'anvil': 'anvil_setStorageAt',
+            'hardhat': 'hardhat_setStorageAt',
+            'ganache': 'evm_setAccountStorageAt',
+        }
+        web3.manager.request_blocking(method[self.client], params)
 
     def preview_tx(self, safe_tx: SafeTx, events=True, call_trace=False) -> TransactionReceipt:
         tx = copy(safe_tx)

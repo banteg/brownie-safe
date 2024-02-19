@@ -1,0 +1,95 @@
+on: ["push", "pull_request"]
+
+name: Test
+
+concurrency:
+  # Cancel older, in-progress jobs from the same PR, same workflow.
+  # use run_id if the job is triggered by a push to ensure
+  # push-triggered jobs to not get canceled.
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+    linting:
+        runs-on: ubuntu-latest
+
+        steps:
+        - uses: actions/checkout@v3
+
+        - name: Setup Python
+          uses: actions/setup-python@v4
+          with:
+              python-version: "3.10"
+
+        - name: Install Dependencies
+          run: |
+            python -m pip install --upgrade pip
+            pip install .[lint]
+
+        - name: Run Black
+          run: black --check .
+
+        - name: Run isort
+          run: isort --check-only .
+
+        - name: Run flake8
+          run: flake8 .
+
+    type-check:
+        runs-on: ubuntu-latest
+
+        steps:
+        - uses: actions/checkout@v3
+
+        - name: Setup Python
+          uses: actions/setup-python@v4
+          with:
+              python-version: "3.10"
+
+        - name: Install Dependencies
+          run: |
+            python -m pip install --upgrade pip
+            pip install .[lint,test]
+
+        - name: Run MyPy
+          run: mypy .
+
+    functional:
+        runs-on: ${{ matrix.os }}
+
+        strategy:
+            matrix:
+                os: [ubuntu-latest, macos-latest]   # eventually add `windows-latest`
+                python-version: [3.8, 3.9, "3.10", "3.11"]
+
+        env:
+          GITHUB_ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+        steps:
+        - uses: actions/checkout@v3
+
+        - name: Install Foundry
+          uses: foundry-rs/foundry-toolchain@v1
+          with:
+              version: nightly
+
+        - name: Setup Python
+          uses: actions/setup-python@v4
+          with:
+              python-version: ${{ matrix.python-version }}
+
+        - name: Install Dependencies
+          run: |
+            python -m pip install --upgrade pip
+            pip install .[test]
+
+        - name: Install plugins
+          run: ape plugins install .
+
+        # TODO: Remove once dependency work is completed
+        # https://github.com/ApeWorX/ape/issues/1327
+        - name: Copy smart-contracts to dependencies
+          run: mkdir -p ~/.ape/packages/safe-contracts/v1.3.0/ && cp safe-contracts.json ~/.ape/packages/safe-contracts/v1.3.0/
+
+        - name: Run Tests
+          run: pytest -n 0 -s --cov
