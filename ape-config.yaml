@@ -1,0 +1,18 @@
+plugins:
+  - name: solidity
+  - name: foundry
+
+dependencies:
+  - name: safe-contracts
+    github: safe-global/safe-contracts
+    version: 1.3.0
+
+ethereum:
+  local:
+    default_provider: foundry
+
+foundry:
+  fork:
+    ethereum:
+      mainnet:
+        upstream_provider: infura
