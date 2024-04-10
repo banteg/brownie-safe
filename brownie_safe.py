@@ -121,8 +121,9 @@ class BrownieSafe(Safe):
 
     @cached_property
     def client(self):
-        match = re.search('(anvil|hardhat|ganache)', web3.clientVersion.lower())
-        return match.group(1)
+        client_version = web3.clientVersion
+        match = re.search('(anvil|hardhat|ganache)', client_version.lower())
+        return match.group(1) if match else client_version
 
     @property
     def account(self) -> LocalAccount:
