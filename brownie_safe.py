@@ -73,6 +73,17 @@ class ApiError(Exception):
 
 
 class BrownieSafe(Safe):
+class BrownieSafe:
+
+    def __new__(cls, address):
+        # safe-eth-py uses a "hacky factory", so we need to outhack it by dynamically choosing a superclass
+        address = to_address(address)
+        ethereum_client = EthereumClient(web3.provider.endpoint_uri)
+        super_safe = Safe(address, ethereum_client)
+        brownie_safe = type('BrownieSafe', (cls, *super_safe.__class__.mro()), {})
+        instance = super().__new__(brownie_safe)
+        return instance
+
 
     def __init__(self, address, base_url=None, multisend=None):
         """
