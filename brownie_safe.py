@@ -11,7 +11,7 @@ from brownie import Contract, accounts, chain, history, web3
 from brownie.convert.datatypes import EthAddress
 from brownie.network.account import LocalAccount
 from brownie.network.transaction import TransactionReceipt
-from eth_abi import encode_abi
+from eth_abi import encode
 from eth_utils import is_address, to_checksum_address, encode_hex, keccak
 from gnosis.safe import Safe, SafeOperation
 from gnosis.safe.multi_send import MultiSend, MultiSendOperation, MultiSendTx
@@ -328,7 +328,7 @@ class BrownieSafe(Safe):
         return self.estimate_tx_gas(safe_tx.to, safe_tx.value, safe_tx.data, safe_tx.operation)
 
     def set_storage(self, account: str, slot: int, value: int):
-        params = [account, hex(slot), encode_hex(encode_abi(['uint'], [value]))]
+        params = [account, hex(slot), encode_hex(encode(['uint'], [value]))]
         method = {
             'anvil': 'anvil_setStorageAt',
             'hardhat': 'hardhat_setStorageAt',
@@ -349,11 +349,11 @@ class BrownieSafe(Safe):
         # Signautres are encoded as [bytes32 r, bytes32 s, bytes8 v]
         # Pre-validated signatures are encoded as r=owner, s unused and v=1.
         # https://docs.gnosis.io/safe/docs/contracts_signatures/#pre-validated-signatures
-        tx.signatures = b''.join([encode_abi(['address', 'uint'], [str(owner), 0]) + b'\x01' for owner in owners])
+        tx.signatures = b''.join([encode(['address', 'uint'], [str(owner), 0]) + b'\x01' for owner in owners])
 
         # approvedHashes are in slot 8 and have type of mapping(address => mapping(bytes32 => uint256))
         for owner in owners[:threshold]:
-            outer_key = keccak(encode_abi(['address', 'uint'], [str(owner), 8]))
+            outer_key = keccak(encode(['address', 'uint'], [str(owner), 8]))
             slot = int.from_bytes(keccak(tx.safe_tx_hash + outer_key), 'big')
             self.set_storage(tx.safe_address, slot, 1)
 
