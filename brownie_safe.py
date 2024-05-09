@@ -61,34 +61,6 @@ CUSTOM_MULTISENDS = {
     EthereumNetworkBackport.BASE_GOERLI: ALT_MULTISEND_CALL_ONLY,
 }
 
-class TransactionServiceBackport(TransactionServiceApi):
-    URL_BY_NETWORK = {
-        EthereumNetworkBackport.ARBITRUM_ONE: "https://safe-transaction-arbitrum.safe.global",
-        EthereumNetworkBackport.AURORA_MAINNET: "https://safe-transaction-aurora.safe.global",
-        EthereumNetworkBackport.AVALANCHE_C_CHAIN: "https://safe-transaction-avalanche.safe.global",
-        EthereumNetworkBackport.BASE: "https://safe-transaction-base.safe.global",
-        EthereumNetworkBackport.BASE_GOERLI: "https://safe-transaction-base-testnet.safe.global",
-        EthereumNetworkBackport.BINANCE_SMART_CHAIN_MAINNET: "https://safe-transaction-bsc.safe.global",
-        EthereumNetworkBackport.CELO: "https://safe-transaction-celo.safe.global",
-        EthereumNetworkBackport.ENERGY_WEB_CHAIN: "https://safe-transaction-ewc.safe.global",
-        EthereumNetworkBackport.GOERLI: "https://safe-transaction-goerli.safe.global",
-        EthereumNetworkBackport.MAINNET: "https://safe-transaction-mainnet.safe.global",
-        EthereumNetworkBackport.POLYGON: "https://safe-transaction-polygon.safe.global",
-        EthereumNetworkBackport.OPTIMISM: "https://safe-transaction-optimism.safe.global",
-        EthereumNetworkBackport.ENERGY_WEB_VOLTA_TESTNET: "https://safe-transaction-volta.safe.global",
-        EthereumNetworkBackport.GNOSIS: "https://safe-transaction-gnosis-chain.safe.global",
-        EthereumNetworkBackport.FANTOM: "https://safe-txservice.fantom.network",
-        EthereumNetworkBackport.BOBA_NETWORK: "https://safe-transaction.mainnet.boba.network",
-    }
-
-    def __init__(self, network: EthereumNetwork, ethereum_client: Optional[EthereumClient] = None, base_url: Optional[str] = None):
-        self.network = network
-        self.ethereum_client = ethereum_client
-        self.base_url = base_url or self.URL_BY_NETWORK.get(EthereumNetworkBackport(network.value))
-        if not self.base_url:
-            raise EthereumNetworkNotSupported(network)
-
-
 warnings.filterwarnings('ignore', 'The function signature for resolver.*')
 
 
