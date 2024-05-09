@@ -72,7 +72,25 @@ class ApiError(Exception):
     pass
 
 
-class BrownieSafe(Safe):
+class ContractWrapper:
+    def __init__(self, account, instance):
+        self.account = account
+        self.instance = instance
+
+    def __call__(self, address):
+        address = to_address(address)
+        return Contract(address, owner=self.account)
+    
+    def __getattr__(self, attr):
+        return getattr(self.instance, attr)
+    
+
+def to_address(address):
+    if is_address(address):
+        return to_checksum_address(address)
+    return web3.ens.address(address)
+
+
 class BrownieSafe:
 
     def __new__(cls, address):
@@ -89,11 +107,18 @@ class BrownieSafe:
         """
         Create an BrownieSafe from an address or a ENS name and use a default connection.
         """
-        address = to_checksum_address(address) if is_address(address) else web3.ens.resolve(address)
+        address = to_address(address)
         ethereum_client = EthereumClient(web3.provider.endpoint_uri)
-        self.transaction_service = TransactionServiceBackport(ethereum_client.get_network(), ethereum_client, base_url)
+        self.transaction_service = TransactionServiceApi(ethereum_client.get_network(), ethereum_client, base_url)
         self.multisend = multisend or CUSTOM_MULTISENDS.get(EthereumNetworkBackport(chain.id), DEFAULT_MULTISEND_CALL_ONLY)
         super().__init__(address, ethereum_client)
+        
+        # safe-eth-py shadows the .contract method after 4.3.2
+        # we use a wrapper that satisfies both use cases
+        # 1. web3 safe contract instance using __getattr__
+        # 2. instantiating contract instance with safe as an owner using __call__
+        self.contract = ContractWrapper(self.account, self.contract)
+        
         if self.client == 'anvil':
             web3.manager.request_blocking('anvil_setNextBlockBaseFeePerGas', ['0x0'])
 
@@ -105,7 +130,7 @@ class BrownieSafe:
 
     @cached_property
     def client(self):
-        client_version = web3.clientVersion
+        client_version = web3.client_version
         match = re.search('(anvil|hardhat|ganache)', client_version.lower())
         return match.group(1) if match else client_version
 
@@ -115,13 +140,6 @@ class BrownieSafe:
         Unlocked Brownie account for Gnosis Safe.
         """
         return accounts.at(self.address, force=True)
-
-    def contract(self, address) -> Contract:
-        """
-        Instantiate a Brownie Contract owned by Safe account.
-        """
-        address = to_checksum_address(address) if is_address(address) else web3.ens.resolve(address)
-        return Contract(address, owner=self.account)
 
     def pending_nonce(self) -> int:
         """
