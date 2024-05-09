@@ -13,7 +13,8 @@ from brownie.network.account import LocalAccount
 from brownie.network.transaction import TransactionReceipt
 from eth_abi import encode
 from eth_utils import is_address, to_checksum_address, encode_hex, keccak
-from gnosis.safe import Safe, SafeOperation
+from gnosis.safe import Safe
+from gnosis.safe.enums import SafeOperationEnum
 from gnosis.safe.multi_send import MultiSend, MultiSendOperation, MultiSendTx
 from gnosis.safe.safe_tx import SafeTx
 from gnosis.safe.signatures import signature_split, signature_to_bytes
@@ -146,7 +147,7 @@ class BrownieSafe(Safe):
         results = self.transaction_service.get_transactions(self.address)
         return results[0]['nonce'] + 1 if results else 0
 
-    def tx_from_receipt(self, receipt: TransactionReceipt, operation: SafeOperation = SafeOperation.CALL, safe_nonce: int = None) -> SafeTx:
+    def tx_from_receipt(self, receipt: TransactionReceipt, operation: SafeOperationEnum = SafeOperationEnum.CALL, safe_nonce: int = None) -> SafeTx:
         """
         Convert Brownie transaction receipt to a Safe transaction.
         """
@@ -169,7 +170,7 @@ class BrownieSafe(Safe):
         data = MultiSend(
             ethereum_client=self.ethereum_client, address=self.multisend
         ).build_tx_data(txs)
-        return self.build_multisig_tx(self.multisend, 0, data, SafeOperation.DELEGATE_CALL.value, safe_nonce=safe_nonce)
+        return self.build_multisig_tx(self.multisend, 0, data, SafeOperationEnum.DELEGATE_CALL.value, safe_nonce=safe_nonce)
 
     def get_signer(self, signer: Optional[Union[LocalAccount, str]] = None) -> LocalAccount:
         if signer is None:
