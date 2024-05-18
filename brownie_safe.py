@@ -292,7 +292,7 @@ class BrownieSafe(Safe):
         """
         Retrieve pending transactions from the transaction service.
         """
-        results = self.transaction_service._get_request(f'/api/v1/safes/{self.address}/transactions/').json()['results']
+        results = self.transaction_service._get_request(f'/api/v1/safes/{self.address}/multisig-transactions/').json()['results']
         nonce = self.retrieve_nonce()
         transactions = [
             self.build_multisig_tx(
