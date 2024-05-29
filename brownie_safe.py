@@ -340,7 +340,7 @@ class BrownieSafe:
 
     def preview_tx(self, safe_tx: SafeTx, events=True, call_trace=False) -> TransactionReceipt:
         tx = copy(safe_tx)
-        safe = Contract.from_abi('Gnosis Safe', self.address, self.get_contract().abi)
+        safe = Contract.from_abi('Gnosis Safe', self.address, self.contract.abi)
         # Replace pending nonce with the subsequent nonce, this could change the safe_tx_hash
         tx.safe_nonce = safe.nonce()
         # Forge signatures from the needed amount of owners, skip the one which submits the tx
