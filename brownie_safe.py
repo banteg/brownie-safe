@@ -359,7 +359,7 @@ class BrownieSafe:
             slot = int.from_bytes(keccak(tx.safe_tx_hash + outer_key), 'big')
             self.set_storage(tx.safe_address, slot, 1)
 
-        payload = tx.w3_tx.buildTransaction()
+        payload = tx.w3_tx.build_transaction()
         receipt = owners[0].transfer(payload['to'], payload['value'], gas_limit=payload['gas'], data=payload['data'])
 
         if 'ExecutionSuccess' not in receipt.events:
@@ -387,7 +387,7 @@ class BrownieSafe:
         """
         Execute a fully signed transaction likely retrieved from the pending_transactions method.
         """
-        payload = safe_tx.w3_tx.buildTransaction()
+        payload = safe_tx.w3_tx.build_transaction()
         signer = self.get_signer(signer)
         receipt = signer.transfer(payload['to'], payload['value'], gas_limit=payload['gas'], data=payload['data'])
         return receipt
@@ -400,7 +400,7 @@ class BrownieSafe:
         frame = Web3(Web3.HTTPProvider(frame_rpc, {'timeout': 600}))
         account = frame.eth.accounts[0]
         frame.manager.request_blocking('wallet_switchEthereumChain', [{'chainId': hex(chain.id)}])
-        payload = safe_tx.w3_tx.buildTransaction()
+        payload = safe_tx.w3_tx.build_transaction()
         tx = {
             "from": account,
             "to": self.address,
