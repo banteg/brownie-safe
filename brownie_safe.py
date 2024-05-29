@@ -2,10 +2,11 @@ import os
 import re
 import warnings
 from copy import copy
-from typing import Dict, List, Optional, Union
 from enum import Enum
+from functools import cached_property
+from typing import Dict, List, Optional, Union
+
 import click
-from gnosis.eth import EthereumClient, EthereumNetwork
 from web3 import Web3  # don't move below brownie import
 from brownie import Contract, accounts, chain, history, web3
 from brownie.convert.datatypes import EthAddress
@@ -13,19 +14,18 @@ from brownie.network.account import LocalAccount
 from brownie.network.transaction import TransactionReceipt
 from eth_abi import encode
 from eth_utils import is_address, to_checksum_address, encode_hex, keccak
+from gnosis.eth import EthereumClient
 from gnosis.safe import Safe
+from gnosis.safe.api import TransactionServiceApi
 from gnosis.safe.enums import SafeOperationEnum
 from gnosis.safe.multi_send import MultiSend, MultiSendOperation, MultiSendTx
 from gnosis.safe.safe_tx import SafeTx
 from gnosis.safe.signatures import signature_split, signature_to_bytes
-from gnosis.safe.api import TransactionServiceApi
-from gnosis.eth.ethereum_client import EthereumNetworkNotSupported
 from hexbytes import HexBytes
 from trezorlib import ethereum, tools, ui
 from trezorlib.client import TrezorClient
 from trezorlib.messages import EthereumSignMessage
 from trezorlib.transport import get_transport
-from functools import cached_property
 
 
 class EthereumNetworkBackport(Enum):
@@ -80,10 +80,10 @@ class ContractWrapper:
     def __call__(self, address):
         address = to_address(address)
         return Contract(address, owner=self.account)
-    
+
     def __getattr__(self, attr):
         return getattr(self.instance, attr)
-    
+
 
 def to_address(address):
     if is_address(address):
@@ -112,13 +112,13 @@ class BrownieSafe:
         self.transaction_service = TransactionServiceApi(ethereum_client.get_network(), ethereum_client, base_url)
         self.multisend = multisend or CUSTOM_MULTISENDS.get(EthereumNetworkBackport(chain.id), DEFAULT_MULTISEND_CALL_ONLY)
         super().__init__(address, ethereum_client)
-        
+
         # safe-eth-py shadows the .contract method after 4.3.2
         # we use a wrapper that satisfies both use cases
         # 1. web3 safe contract instance using __getattr__
         # 2. instantiating contract instance with safe as an owner using __call__
         self.contract = ContractWrapper(self.account, self.contract)
-        
+
         if self.client == 'anvil':
             web3.manager.request_blocking('anvil_setNextBlockBaseFeePerGas', ['0x0'])
 
