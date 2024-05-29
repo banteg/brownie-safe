@@ -1,5 +1,6 @@
 import os
 import re
+import requests
 import warnings
 from copy import copy
 from typing import Dict, List, Optional, Union
@@ -47,18 +48,7 @@ class EthereumNetworkBackport(Enum):
 
 
 # MultiSendCallOnly doesn't allow delegatecalls
-# https://github.com/safe-global/safe-deployments/blob/main/src/assets/v1.3.0/multi_send_call_only.json
-DEFAULT_MULTISEND_CALL_ONLY = "0x40A2aCCbd92BCA938b02010E17A5b8929b49130D"
-ALT_MULTISEND_CALL_ONLY = "0xA1dabEF33b3B82c7814B6D82A79e50F4AC44102B"
-CUSTOM_MULTISENDS = {
-    EthereumNetworkBackport.FANTOM: "0x10B62CC1E8D9a9f1Ad05BCC491A7984697c19f7E",
-    EthereumNetworkBackport.OPTIMISM: ALT_MULTISEND_CALL_ONLY,
-    EthereumNetworkBackport.BOBA_NETWORK: ALT_MULTISEND_CALL_ONLY,
-    EthereumNetworkBackport.BASE: ALT_MULTISEND_CALL_ONLY,
-    EthereumNetworkBackport.CELO: ALT_MULTISEND_CALL_ONLY,
-    EthereumNetworkBackport.AVALANCHE_C_CHAIN: ALT_MULTISEND_CALL_ONLY,
-    EthereumNetworkBackport.BASE_GOERLI: ALT_MULTISEND_CALL_ONLY,
-}
+MULTISEND_CALL_ONLY_JSON_URL = 'https://raw.githubusercontent.com/safe-global/safe-deployments/main/src/assets/v1.3.0/multi_send_call_only.json'
 
 class TransactionServiceBackport(TransactionServiceApi):
     URL_BY_NETWORK = {
@@ -108,7 +98,7 @@ class BrownieSafe(Safe):
         address = to_checksum_address(address) if is_address(address) else web3.ens.resolve(address)
         ethereum_client = EthereumClient(web3.provider.endpoint_uri)
         self.transaction_service = TransactionServiceBackport(ethereum_client.get_network(), ethereum_client, base_url)
-        self.multisend = multisend or CUSTOM_MULTISENDS.get(EthereumNetworkBackport(chain.id), DEFAULT_MULTISEND_CALL_ONLY)
+        self.multisend = multisend or requests.get(MULTISEND_CALL_ONLY_JSON_URL).json()['networkAddresses'][str(chain.id)]
         super().__init__(address, ethereum_client)
         if self.client == 'anvil':
             web3.manager.request_blocking('anvil_setNextBlockBaseFeePerGas', ['0x0'])
