@@ -6,3 +6,4 @@ build/
 env/
 .python-version
 scripts/
+__pycache__/
