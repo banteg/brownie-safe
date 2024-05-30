@@ -28,37 +28,18 @@ from trezorlib.transport import get_transport
 from functools import cached_property
 
 
-class EthereumNetworkBackport(Enum):
-    ARBITRUM_ONE = 42161
-    AURORA_MAINNET = 1313161554
-    AVALANCHE_C_CHAIN = 43114
-    BASE = 8453
-    BASE_GOERLI = 84531
-    BINANCE_SMART_CHAIN_MAINNET = 56
-    CELO = 42220
-    ENERGY_WEB_CHAIN = 246
-    GOERLI = 5
-    MAINNET = 1
-    POLYGON = 137
-    OPTIMISM = 10
-    ENERGY_WEB_VOLTA_TESTNET = 73799
-    GNOSIS = 100
-    FANTOM = 250
-    BOBA_NETWORK = 288
-
-
 # MultiSendCallOnly doesn't allow delegatecalls
 # https://github.com/safe-global/safe-deployments/blob/main/src/assets/v1.3.0/multi_send_call_only.json
 DEFAULT_MULTISEND_CALL_ONLY = "0x40A2aCCbd92BCA938b02010E17A5b8929b49130D"
 ALT_MULTISEND_CALL_ONLY = "0xA1dabEF33b3B82c7814B6D82A79e50F4AC44102B"
 CUSTOM_MULTISENDS = {
-    EthereumNetworkBackport.FANTOM: "0x10B62CC1E8D9a9f1Ad05BCC491A7984697c19f7E",
-    EthereumNetworkBackport.OPTIMISM: ALT_MULTISEND_CALL_ONLY,
-    EthereumNetworkBackport.BOBA_NETWORK: ALT_MULTISEND_CALL_ONLY,
-    EthereumNetworkBackport.BASE: ALT_MULTISEND_CALL_ONLY,
-    EthereumNetworkBackport.CELO: ALT_MULTISEND_CALL_ONLY,
-    EthereumNetworkBackport.AVALANCHE_C_CHAIN: ALT_MULTISEND_CALL_ONLY,
-    EthereumNetworkBackport.BASE_GOERLI: ALT_MULTISEND_CALL_ONLY,
+    EthereumNetwork.FANTOM: "0x10B62CC1E8D9a9f1Ad05BCC491A7984697c19f7E",
+    EthereumNetwork.OPTIMISM: ALT_MULTISEND_CALL_ONLY,
+    EthereumNetwork.BOBA_NETWORK: ALT_MULTISEND_CALL_ONLY,
+    EthereumNetwork.BASE: ALT_MULTISEND_CALL_ONLY,
+    EthereumNetwork.CELO: ALT_MULTISEND_CALL_ONLY,
+    EthereumNetwork.AVALANCHE_C_CHAIN: ALT_MULTISEND_CALL_ONLY,
+    EthereumNetwork.BASE_GOERLI: ALT_MULTISEND_CALL_ONLY,
 }
 
 warnings.filterwarnings('ignore', 'The function signature for resolver.*')
