@@ -9,7 +9,7 @@ Brownie Safe allows you to iteratively build complex multi-step Gnosis Safe tran
 ## Installation
 
 ```
-pip install -U brownie-safe
+uv pip install brownie-safe --pre
 ```
 
 ## Quickstart

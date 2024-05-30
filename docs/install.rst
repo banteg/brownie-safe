@@ -8,7 +8,7 @@ Then you can simply:
 
 .. code-block:: bash
 
-   pip install -U brownie-safe
+   uv pip install brownie-safe --pre
 
 
 .. _Brownie: https://eth-brownie.readthedocs.io/en/latest/install.html
