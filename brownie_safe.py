@@ -1,12 +1,9 @@
 from abc import ABCMeta
 import os
 import re
-import warnings
 from copy import copy
 from typing import Dict, List, Optional, Union
-from enum import Enum
 import click
-from gnosis.eth import EthereumClient, EthereumNetwork
 from web3 import Web3  # don't move below brownie import
 from brownie import Contract, accounts, chain, history, web3
 from brownie.convert.datatypes import EthAddress
@@ -15,13 +12,13 @@ from brownie.network.transaction import TransactionReceipt
 from eth_abi import encode
 from eth_utils import is_address, to_checksum_address, encode_hex, keccak
 from gnosis.safe import Safe
+from gnosis.eth import EthereumClient
 from gnosis.safe.safe import SafeV111, SafeV120, SafeV130, SafeV141
 from gnosis.safe.enums import SafeOperationEnum
 from gnosis.safe.multi_send import MultiSend, MultiSendOperation, MultiSendTx
 from gnosis.safe.safe_tx import SafeTx
 from gnosis.safe.signatures import signature_split, signature_to_bytes
 from gnosis.safe.api import TransactionServiceApi
-from gnosis.eth.ethereum_client import EthereumNetworkNotSupported
 from hexbytes import HexBytes
 from trezorlib import ethereum, tools, ui
 from trezorlib.client import TrezorClient
@@ -117,9 +114,7 @@ class BrownieSafeBase(metaclass=ABCMeta):
             safe_nonce = self.pending_nonce()
 
         txs = [MultiSendTx(MultiSendOperation.CALL, tx.receiver, tx.value, tx.input) for tx in receipts]
-        data = MultiSend(
-            ethereum_client=self.ethereum_client, address=self.multisend
-        ).build_tx_data(txs)
+        data = self.multisend.build_tx_data(txs)
         return self.build_multisig_tx(self.multisend, 0, data, SafeOperationEnum.DELEGATE_CALL.value, safe_nonce=safe_nonce)
 
     def get_signer(self, signer: Optional[Union[LocalAccount, str]] = None) -> LocalAccount:
@@ -308,7 +303,7 @@ class BrownieSafeBase(metaclass=ABCMeta):
             slot = int.from_bytes(keccak(tx.safe_tx_hash + outer_key), 'big')
             self.set_storage(tx.safe_address, slot, 1)
 
-        payload = tx.w3_tx.buildTransaction()
+        payload = tx.w3_tx.build_transaction()
         receipt = owners[0].transfer(payload['to'], payload['value'], gas_limit=payload['gas'], data=payload['data'])
 
         if 'ExecutionSuccess' not in receipt.events:
@@ -336,7 +331,7 @@ class BrownieSafeBase(metaclass=ABCMeta):
         """
         Execute a fully signed transaction likely retrieved from the pending_transactions method.
         """
-        payload = safe_tx.w3_tx.buildTransaction()
+        payload = safe_tx.w3_tx.build_transaction()
         signer = self.get_signer(signer)
         receipt = signer.transfer(payload['to'], payload['value'], gas_limit=payload['gas'], data=payload['data'])
         return receipt
@@ -349,13 +344,13 @@ class BrownieSafeBase(metaclass=ABCMeta):
         frame = Web3(Web3.HTTPProvider(frame_rpc, {'timeout': 600}))
         account = frame.eth.accounts[0]
         frame.manager.request_blocking('wallet_switchEthereumChain', [{'chainId': hex(chain.id)}])
-        payload = safe_tx.w3_tx.buildTransaction()
+        payload = safe_tx.w3_tx.build_transaction()
         tx = {
             "from": account,
             "to": self.address,
             "value": payload["value"],
             "nonce": frame.eth.get_transaction_count(account),
-            "gas": web3.toHex(payload["gas"]),
+            "gas": web3.to_hex(payload["gas"]),
             "data": HexBytes(payload["data"]),
         }
         frame.eth.send_transaction(tx)
