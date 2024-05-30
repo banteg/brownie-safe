@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "brownie-safe"
-version = "0.8.6"
+version = "0.9.0"
 description = "Build complex Gnosis Safe transactions and safely preview them in a forked environment."
 authors = ["banteg"]
 license = "MIT"
@@ -8,10 +8,10 @@ repository = "https://github.com/banteg/brownie-safe"
 readme = "readme.md"
 
 [tool.poetry.dependencies]
-python = ">=3.9,<3.11"
-eth-brownie = "1.19.2"
-safe-eth-py = "4.3.2"
-trezor = "0.13.7"
+python = ">=3.10,<3.13"
+eth-brownie = ">=1.20.5"
+safe-eth-py = ">=6.0.0b30"
+trezor = ">=0.13.8"
 
 [tool.poetry.dev-dependencies]
 

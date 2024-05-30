@@ -1,6 +1,14 @@
 Changelog
 =========
 
+0.9.0
+-----
+
+- add support for latest brownie
+- support latest safe-eth-py factory
+- remove backports
+
+
 0.8.0
 -----
 
