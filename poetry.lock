@@ -909,13 +909,13 @@ test = ["hypothesis (>=3.31.2)", "pytest (>=7.0.0)", "pytest-xdist (>=2.4.0)"]
 
 [[package]]
 name = "eth-brownie"
-version = "1.20.4"
+version = "1.20.5"
 description = "A Python framework for Ethereum smart contract deployment, testing and interaction."
 optional = false
 python-versions = "<4,>=3.10"
 files = [
-    {file = "eth_brownie-1.20.4-py3-none-any.whl", hash = "sha256:df98a91dadf824abbb1c0a12b08b73e5832038607a2667323f1f01ad529a1ec9"},
-    {file = "eth_brownie-1.20.4.tar.gz", hash = "sha256:fec188e97e18abcb9c0f1c45f2ce2c70079b06c940c0869537ee6e464ca03a8c"},
+    {file = "eth_brownie-1.20.5-py3-none-any.whl", hash = "sha256:606cfc99062e045230a7d500ae51987163f08cc0b9ee05f0be433a6e2734ec88"},
+    {file = "eth_brownie-1.20.5.tar.gz", hash = "sha256:cb3f2ebb33f0cb98d8362a0d749d61fc4f4852e397bc1579539da2aa6e82ed3d"},
 ]
 
 [package.dependencies]
@@ -2359,13 +2359,13 @@ files = [
 
 [[package]]
 name = "safe-eth-py"
-version = "6.0.0b29"
+version = "6.0.0b30"
 description = "Safe Ecosystem Foundation utilities for Ethereum projects"
 optional = false
 python-versions = ">=3.9"
 files = [
-    {file = "safe_eth_py-6.0.0b29-py3-none-any.whl", hash = "sha256:27a25baef78fa26af1838b1885e25f560fa433af52ae829dd73e92f46c9843e5"},
-    {file = "safe_eth_py-6.0.0b29.tar.gz", hash = "sha256:faaedc1bc1f5a96a8cbdcbb070f82191835c99b335c1140f1868c89836c864e9"},
+    {file = "safe_eth_py-6.0.0b30-py3-none-any.whl", hash = "sha256:4b22f576f90fc986736d4586f9de868118ccc1be9c4e24fb55f2c328fb4384c0"},
+    {file = "safe_eth_py-6.0.0b30.tar.gz", hash = "sha256:582327038b8fbd8e728bb318e01d7c82a764ade019fa46261e498cfbb56d2693"},
 ]
 
 [package.dependencies]
@@ -2939,4 +2939,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.13"
-content-hash = "e371fb08ea628dd53fa7f06418b2fd68ed58b2181824eaba29937e2822d19311"
+content-hash = "73f998035a4396588c6df00f77c251230e54b014409f1b99c62a6a93cc544c72"
