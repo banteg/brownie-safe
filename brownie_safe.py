@@ -30,23 +30,6 @@ from trezorlib.transport import get_transport
 from functools import cached_property
 
 
-# MultiSendCallOnly doesn't allow delegatecalls
-# https://github.com/safe-global/safe-deployments/blob/main/src/assets/v1.3.0/multi_send_call_only.json
-DEFAULT_MULTISEND_CALL_ONLY = "0x40A2aCCbd92BCA938b02010E17A5b8929b49130D"
-ALT_MULTISEND_CALL_ONLY = "0xA1dabEF33b3B82c7814B6D82A79e50F4AC44102B"
-CUSTOM_MULTISENDS = {
-    EthereumNetwork.FANTOM_OPERA: "0x10B62CC1E8D9a9f1Ad05BCC491A7984697c19f7E",
-    EthereumNetwork.OPTIMISM: ALT_MULTISEND_CALL_ONLY,
-    EthereumNetwork.BOBA_NETWORK: ALT_MULTISEND_CALL_ONLY,
-    EthereumNetwork.BASE: ALT_MULTISEND_CALL_ONLY,
-    EthereumNetwork.CELO_MAINNET: ALT_MULTISEND_CALL_ONLY,
-    EthereumNetwork.AVALANCHE_C_CHAIN: ALT_MULTISEND_CALL_ONLY,
-    EthereumNetwork.BASE_GOERLI_TESTNET: ALT_MULTISEND_CALL_ONLY,
-}
-
-warnings.filterwarnings('ignore', 'The function signature for resolver.*')
-
-
 class ExecutionFailure(Exception):
     pass
 
@@ -414,10 +397,10 @@ def BrownieSafe(address, base_url=None, multisend=None):
     ethereum_client = EthereumClient(web3.provider.endpoint_uri)
     safe = Safe(address, ethereum_client)
     version = safe.get_version()
-    # we need to move part of initialization here because we can't have kwargs based on how safe factory works
+    
     brownie_safe = PATCHED_SAFE_VERSIONS[version](address, ethereum_client)
     brownie_safe.transaction_service = TransactionServiceApi(ethereum_client.get_network(), ethereum_client, base_url)
-    brownie_safe.multisend = multisend or CUSTOM_MULTISENDS.get(EthereumNetwork(chain.id), DEFAULT_MULTISEND_CALL_ONLY)
+    brownie_safe.multisend = MultiSend(ethereum_client, multisend, call_only=True)
         
     return brownie_safe
  
