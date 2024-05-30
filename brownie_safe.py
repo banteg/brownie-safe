@@ -1,3 +1,4 @@
+from abc import ABCMeta
 import os
 import re
 import warnings
@@ -14,6 +15,7 @@ from brownie.network.transaction import TransactionReceipt
 from eth_abi import encode
 from eth_utils import is_address, to_checksum_address, encode_hex, keccak
 from gnosis.safe import Safe
+from gnosis.safe.safe import SafeV111, SafeV120, SafeV130, SafeV141
 from gnosis.safe.enums import SafeOperationEnum
 from gnosis.safe.multi_send import MultiSend, MultiSendOperation, MultiSendTx
 from gnosis.safe.safe_tx import SafeTx
@@ -72,26 +74,9 @@ def to_address(address):
     return web3.ens.address(address)
 
 
-class BrownieSafe:
+class BrownieSafeBase(metaclass=ABCMeta):
 
-    def __new__(cls, address):
-        # safe-eth-py uses a "hacky factory", so we need to outhack it by dynamically choosing a superclass
-        address = to_address(address)
-        ethereum_client = EthereumClient(web3.provider.endpoint_uri)
-        super_safe = Safe(address, ethereum_client)
-        brownie_safe = type('BrownieSafe', (cls, *super_safe.__class__.mro()), {})
-        instance = super().__new__(brownie_safe)
-        return instance
-
-
-    def __init__(self, address, base_url=None, multisend=None):
-        """
-        Create an BrownieSafe from an address or a ENS name and use a default connection.
-        """
-        address = to_address(address)
-        ethereum_client = EthereumClient(web3.provider.endpoint_uri)
-        self.transaction_service = TransactionServiceApi(ethereum_client.get_network(), ethereum_client, base_url)
-        self.multisend = multisend or CUSTOM_MULTISENDS.get(EthereumNetworkBackport(chain.id), DEFAULT_MULTISEND_CALL_ONLY)
+    def __init__(self, address, ethereum_client):
         super().__init__(address, ethereum_client)
         
         # safe-eth-py shadows the .contract method after 4.3.2
@@ -398,3 +383,41 @@ class BrownieSafe:
         """
         for safe_tx in self.pending_transactions:
             self.preview_tx(safe_tx, events=events, call_trace=call_trace)
+
+
+class BrownieSafeV111(BrownieSafeBase, SafeV111):
+    pass
+
+class BrownieSafeV120(BrownieSafeBase, SafeV120):
+    pass
+
+class BrownieSafeV130(BrownieSafeBase, SafeV130):
+    pass
+
+class BrownieSafeV141(BrownieSafeBase, SafeV141):
+    pass
+
+
+PATCHED_SAFE_VERSIONS = {
+    '1.1.1': BrownieSafeV111,
+    '1.2.0': BrownieSafeV120,
+    '1.3.0': BrownieSafeV130,
+    '1.4.1': BrownieSafeV141,
+}
+
+
+def BrownieSafe(address, base_url=None, multisend=None):
+    """
+    Create an BrownieSafe from an address or a ENS name and use a default connection.
+    """
+    address = to_address(address)
+    ethereum_client = EthereumClient(web3.provider.endpoint_uri)
+    safe = Safe(address, ethereum_client)
+    version = safe.get_version()
+    # we need to move part of initialization here because we can't have kwargs based on how safe factory works
+    brownie_safe = PATCHED_SAFE_VERSIONS[version](address, ethereum_client)
+    brownie_safe.transaction_service = TransactionServiceApi(ethereum_client.get_network(), ethereum_client, base_url)
+    brownie_safe.multisend = multisend or CUSTOM_MULTISENDS.get(EthereumNetwork(chain.id), DEFAULT_MULTISEND_CALL_ONLY)
+        
+    return brownie_safe
+ 
