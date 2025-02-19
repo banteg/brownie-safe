@@ -92,7 +92,7 @@ class BrownieSafeBase(metaclass=ABCMeta):
         Subsequent nonce which accounts for pending transactions in the transaction service.
         """
         results = self.transaction_service.get_transactions(self.address)
-        return results[0]['nonce'] + 1 if results else 0
+        return int(results[0]['nonce']) + 1 if results else 0
 
     def tx_from_receipt(self, receipt: TransactionReceipt, operation: SafeOperationEnum = SafeOperationEnum.CALL, safe_nonce: int = None) -> SafeTx:
         """
