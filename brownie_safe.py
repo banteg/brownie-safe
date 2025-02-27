@@ -11,14 +11,14 @@ from brownie.network.account import LocalAccount
 from brownie.network.transaction import TransactionReceipt
 from eth_abi import encode
 from eth_utils import is_address, to_checksum_address, encode_hex, keccak
-from gnosis.safe import Safe
-from gnosis.eth import EthereumClient
-from gnosis.safe.safe import SafeV111, SafeV120, SafeV130, SafeV141
-from gnosis.safe.enums import SafeOperationEnum
-from gnosis.safe.multi_send import MultiSend, MultiSendOperation, MultiSendTx
-from gnosis.safe.safe_tx import SafeTx
-from gnosis.safe.signatures import signature_split, signature_to_bytes
-from gnosis.safe.api import TransactionServiceApi
+from safe_eth.safe import Safe
+from safe_eth.eth import EthereumClient
+from safe_eth.safe.safe import SafeV111, SafeV120, SafeV130, SafeV141
+from safe_eth.safe.enums import SafeOperationEnum
+from safe_eth.safe.multi_send import MultiSend, MultiSendOperation, MultiSendTx
+from safe_eth.safe.safe_tx import SafeTx
+from safe_eth.safe.signatures import signature_split, signature_to_bytes
+from safe_eth.safe.api import TransactionServiceApi
 from hexbytes import HexBytes
 from trezorlib import ethereum, tools, ui
 from trezorlib.client import TrezorClient
