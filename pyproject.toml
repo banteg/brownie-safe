@@ -10,7 +10,7 @@ readme = "readme.md"
 [tool.poetry.dependencies]
 python = ">=3.10,<3.13"
 eth-brownie = ">=1.20.5"
-safe-eth-py = ">=6.0.0b30"
+safe-eth-py = ">=7.0.0"
 trezor = ">=0.13.8"
 
 [tool.poetry.dev-dependencies]
