@@ -238,7 +238,7 @@ class BrownieSafeBase(metaclass=ABCMeta):
         """
         Retrieve pending transactions from the transaction service.
         """
-        results = self.transaction_service._get_request(f'/api/v1/safes/{self.address}/multisig-transactions/').json()['results']
+        results = self.transaction_service.get_transactions(self.address)
         nonce = self.retrieve_nonce()
         transactions = [
             self.build_multisig_tx(
