@@ -1,6 +1,23 @@
 Changelog
 =========
 
+0.9.3
+-----
+
+- support authenticated Safe Transaction Service API
+
+0.9.2
+-----
+
+- switch from gnosis imports to safe_eth
+- update safe-eth-py compatibility and dependency constraints
+
+0.9.1
+-----
+
+- fix pending transaction nonce handling
+- document prerelease installation in the README
+
 0.9.0
 -----
 

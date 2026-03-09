@@ -22,7 +22,7 @@ copyright = '2021-2023, banteg'
 author = 'banteg'
 
 # The full version, including alpha/beta/rc tags
-release = '0.7.2'
+release = '0.9.3'
 
 
 # -- General configuration ---------------------------------------------------
