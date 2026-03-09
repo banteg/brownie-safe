@@ -11,9 +11,7 @@ readme = "readme.md"
 python = ">=3.10,<3.13"
 # eth-brownie v1.20.7 requires web3==6.15.1
 eth-brownie = ">=1.20.7"
-# safe-eth-py v6.0.0 renames gnosis to safe_eth
-# safe-eth-py v7.0.0 requires web3>=7.0.0
-safe-eth-py = ">=6.0.0,<7"
+safe-eth-py = { git = "https://github.com/wavey0x/safe-eth-py.git", branch = "wavey_edit" }
 trezor = ">=0.13.8"
 
 [tool.poetry.dev-dependencies]

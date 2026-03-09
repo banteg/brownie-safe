@@ -384,7 +384,7 @@ PATCHED_SAFE_VERSIONS = {
 }
 
 
-def BrownieSafe(address, base_url=None, multisend=None, auth_token=None):
+def BrownieSafe(address, base_url=None, multisend=None, api_key=None):
     """
     Create an BrownieSafe from an address or a ENS name and use a default connection.
     """
@@ -397,9 +397,10 @@ def BrownieSafe(address, base_url=None, multisend=None, auth_token=None):
     brownie_safe.transaction_service = TransactionServiceApi(ethereum_client.get_network(), ethereum_client, base_url)
     brownie_safe.multisend = MultiSend(ethereum_client, multisend, call_only=True)
 
-    token = auth_token or os.environ.get("SAFE_AUTH_TOKEN")
-    if token:
-        brownie_safe.transaction_service.http_session.headers["Authorization"] = f"Bearer {token}"
+    api_key = os.getenv("SAFE_TRANSACTION_SERVICE_API_KEY") if api_key is None else api_key
+    api_key = api_key.strip() if api_key else api_key
+    if api_key:
+        brownie_safe.transaction_service.http_session.headers["Authorization"] = f"Bearer {api_key}"
 
     return brownie_safe
  
