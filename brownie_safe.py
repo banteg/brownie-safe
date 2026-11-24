@@ -13,12 +13,15 @@ from eth_abi import encode
 from eth_utils import is_address, to_checksum_address, encode_hex, keccak
 from safe_eth.safe import Safe
 from safe_eth.eth import EthereumClient
+from safe_eth.eth.constants import NULL_ADDRESS
+from safe_eth.safe.api import SafeAPIException, TransactionServiceApi
 from safe_eth.safe.safe import SafeV111, SafeV120, SafeV130, SafeV141
 from safe_eth.safe.enums import SafeOperationEnum
 from safe_eth.safe.multi_send import MultiSend, MultiSendOperation, MultiSendTx
+from safe_eth.safe.safe_signature import SafeSignature
 from safe_eth.safe.safe_tx import SafeTx
 from safe_eth.safe.signatures import signature_split, signature_to_bytes
-from safe_eth.safe.api import TransactionServiceApi
+from safe_eth.util.http import prepare_http_session
 from hexbytes import HexBytes
 from trezorlib import ethereum, tools, ui
 from trezorlib.client import TrezorClient
@@ -33,6 +36,90 @@ class ExecutionFailure(Exception):
 
 class ApiError(Exception):
     pass
+
+
+class _QueueService:
+    transactions_url = 'https://api.safe.global/queue/api/v1/multisig-transactions'
+
+    def __init__(self, chain_id: int, auth_token: str | None):
+        self.chain_id = chain_id
+        self.http_session = prepare_http_session(10, 100)
+        self.request_timeout = int(os.environ.get('SAFE_TRANSACTION_SERVICE_REQUEST_TIMEOUT', 10))
+        if auth_token:
+            self.http_session.headers['Authorization'] = f'Bearer {auth_token}'
+
+    def _request(self, method, path='', *, allow_conflict=False, **kwargs):
+        response = self.http_session.request(
+            method, self.transactions_url + path, timeout=self.request_timeout, **kwargs
+        )
+        if not response.ok and not (allow_conflict and response.status_code == 409):
+            raise SafeAPIException(f'Safe Queue Service {method} {path or "/"}: HTTP {response.status_code}: {response.text}')
+        return response
+
+    def _pending_page(self, address, *, nonce_order, limit, offset=0):
+        return self._request('GET', '/queue', params={
+            'safes': f'{address}:{self.chain_id}',
+            'nonceOrder': nonce_order,
+            'limit': limit,
+            'offset': offset,
+        }).json()
+
+    def highest_pending_nonce(self, address):
+        results = self._pending_page(address, nonce_order='desc', limit=1)['results']
+        return int(results[0]['nonce']) if results else None
+
+    def pending_transactions(self, address):
+        offset = 0
+        while True:
+            page = self._pending_page(address, nonce_order='asc', limit=100, offset=offset)
+            results = page['results']
+            yield from results
+            if not page['next'] or not results:
+                return
+            offset += len(results)
+
+    def post_transaction(self, safe_tx: SafeTx):
+        safe_tx_hash = safe_tx.safe_tx_hash
+        signatures = SafeSignature.parse_signature(safe_tx.signatures, safe_tx_hash)
+        response = self._request('POST', allow_conflict=True, json={
+            'chainId': self.chain_id,
+            'safe': safe_tx.safe_address,
+            'to': safe_tx.to,
+            'value': str(safe_tx.value),
+            'data': encode_hex(safe_tx.data) if safe_tx.data else None,
+            'operation': safe_tx.operation,
+            'safeTxGas': str(safe_tx.safe_tx_gas),
+            'baseGas': str(safe_tx.base_gas),
+            'gasPrice': str(safe_tx.gas_price),
+            'gasToken': safe_tx.gas_token,
+            'refundReceiver': safe_tx.refund_receiver,
+            'nonce': str(safe_tx.safe_nonce),
+            'signatures': [encode_hex(signature.export_signature()) for signature in signatures],
+            'originName': 'Brownie Safe',
+        })
+        if response.status_code == 409:
+            # The legacy proposal endpoint also accepted new confirmations on existing proposals.
+            transaction = self._request('GET', f'/{encode_hex(safe_tx_hash)}').json()
+            signed = {confirmation['owner'].lower() for confirmation in transaction['confirmations']}
+            if transaction.get('proposedBy'):
+                signed.add(transaction['proposedBy'].lower())
+            missing = [
+                signature.export_signature()
+                for signature in signatures
+                if signature.owner.lower() not in signed
+            ]
+            if missing:
+                self._post_signatures(safe_tx_hash, missing)
+
+    def _post_signatures(self, safe_tx_hash, signatures, *, allow_conflict=False):
+        self._request(
+            'POST', f'/{encode_hex(safe_tx_hash)}/signatures', allow_conflict=allow_conflict,
+            json={'signatures': [encode_hex(signature) for signature in signatures]},
+        )
+
+    def post_signature(self, safe_tx_hash, signature):
+        # A conflict on this single-signature request means the owner already confirmed.
+        self._post_signatures(safe_tx_hash, [signature], allow_conflict=True)
 
 
 class ContractWrapper:
@@ -55,6 +142,7 @@ def to_address(address):
 
 
 class BrownieSafeBase(metaclass=ABCMeta):
+    _queue_service = None
 
     def __init__(self, address, ethereum_client):
         super().__init__(address, ethereum_client)
@@ -89,10 +177,16 @@ class BrownieSafeBase(metaclass=ABCMeta):
 
     def pending_nonce(self) -> int:
         """
-        Subsequent nonce which accounts for pending transactions in the transaction service.
+        Subsequent nonce which accounts for the on-chain nonce and pending transactions.
         """
-        results = self.transaction_service.get_transactions(self.address)
-        return int(results[0]['nonce']) + 1 if results else 0
+        if self._queue_service is None:
+            results = self.transaction_service.get_transactions(self.address)
+            highest_nonce = max((int(tx['nonce']) for tx in results), default=None)
+        else:
+            highest_nonce = self._queue_service.highest_pending_nonce(self.address)
+
+        nonce = self.retrieve_nonce()
+        return nonce if highest_nonce is None else max(nonce, highest_nonce + 1)
 
     def tx_from_receipt(self, receipt: TransactionReceipt, operation: SafeOperationEnum = SafeOperationEnum.CALL, safe_nonce: int = None) -> SafeTx:
         """
@@ -219,53 +313,79 @@ class BrownieSafeBase(metaclass=ABCMeta):
         """
         Submit a Safe transaction to a transaction service.
         Prompts for a signature if needed.
-
-        See also https://github.com/gnosis/safe-cli/blob/master/safe_cli/api/gnosis_transaction.py
         """
         if not safe_tx.sorted_signers:
             self.sign_transaction(safe_tx)
 
-        self.transaction_service.post_transaction(safe_tx)
+        service = self._queue_service or self.transaction_service
+        service.post_transaction(safe_tx)
 
     def post_signature(self, safe_tx: SafeTx, signature: bytes):
         """
         Submit a confirmation signature to a transaction service.
         """
-        self.transaction_service.post_signatures(safe_tx.safe_tx_hash, signature)
+        if self._queue_service is None:
+            self.transaction_service.post_signatures(safe_tx.safe_tx_hash, signature)
+        else:
+            self._queue_service.post_signature(safe_tx.safe_tx_hash, signature)
 
     @property
     def pending_transactions(self) -> List[SafeTx]:
         """
         Retrieve pending transactions from the transaction service.
         """
-        results = self.transaction_service.get_transactions(self.address)
+        if self._queue_service is None:
+            results = self.transaction_service.get_transactions(self.address)
+            pending = (tx for tx in reversed(results) if not tx['isExecuted'])
+        else:
+            pending = self._queue_service.pending_transactions(self.address)
         nonce = self.retrieve_nonce()
-        transactions = [
+        return [
             self.build_multisig_tx(
-                to=tx['to'],
+                to=to_checksum_address(tx['to'] or NULL_ADDRESS),
                 value=int(tx['value']),
                 data=HexBytes(tx['data'] or b''),
                 operation=tx['operation'],
-                safe_tx_gas=tx['safeTxGas'],
-                base_gas=tx['baseGas'],
+                safe_tx_gas=int(tx['safeTxGas']),
+                base_gas=int(tx['baseGas']),
                 gas_price=int(tx['gasPrice']),
-                gas_token=tx['gasToken'],
-                refund_receiver=tx['refundReceiver'],
-                signatures=self.confirmations_to_signatures(tx['confirmations']),
-                safe_nonce=tx['nonce'],
+                gas_token=to_checksum_address(tx['gasToken'] or NULL_ADDRESS),
+                refund_receiver=to_checksum_address(tx['refundReceiver'] or NULL_ADDRESS),
+                signatures=self.confirmations_to_signatures(
+                    tx['confirmations'], tx['safeTxHash'] if self._queue_service is not None else None,
+                ),
+                safe_nonce=int(tx['nonce']),
             )
-            for tx in reversed(results)
-            if tx['nonce'] >= nonce and not tx['isExecuted']
+            for tx in pending
+            if int(tx['nonce']) >= nonce
         ]
-        return transactions
 
-    def confirmations_to_signatures(self, confirmations: List[Dict]) -> bytes:
+    def confirmations_to_signatures(self, confirmations: List[Dict], safe_tx_hash=None) -> bytes:
         """
-        Convert confirmations as returned by the transaction service to combined signatures.
+        Convert service confirmations to combined signatures.
         """
+        if safe_tx_hash is not None:
+            signatures = [
+                signature
+                for confirmation in confirmations
+                for signature in SafeSignature.parse_signature(
+                    HexBytes(confirmation['signature']), HexBytes(safe_tx_hash),
+                )
+            ]
+            return bytes(SafeSignature.export_signatures(signatures))
+
         sorted_confirmations = sorted(confirmations, key=lambda conf: int(conf['owner'], 16))
         signatures = [bytes(HexBytes(conf['signature'])) for conf in sorted_confirmations]
         return b''.join(signatures)
+
+    @cached_property
+    def transaction_service(self) -> TransactionServiceApi:
+        service = TransactionServiceApi(
+            self.ethereum_client.get_network(), self.ethereum_client, self._transaction_service_base_url,
+        )
+        if self._auth_token:
+            service.http_session.headers['Authorization'] = f'Bearer {self._auth_token}'
+        return service
 
     def estimate_gas(self, safe_tx: SafeTx) -> int:
         """
@@ -386,20 +506,21 @@ PATCHED_SAFE_VERSIONS = {
 
 def BrownieSafe(address, base_url=None, multisend=None, auth_token=None):
     """
-    Create an BrownieSafe from an address or a ENS name and use a default connection.
+    Create a BrownieSafe from an address or ENS name.
+
+    Pass base_url to use a custom Safe Transaction Service for off-chain operations.
     """
     address = to_address(address)
     ethereum_client = EthereumClient(web3.provider.endpoint_uri)
     safe = Safe(address, ethereum_client)
     version = safe.get_version()
-    
     brownie_safe = PATCHED_SAFE_VERSIONS[version](address, ethereum_client)
-    brownie_safe.transaction_service = TransactionServiceApi(ethereum_client.get_network(), ethereum_client, base_url)
     brownie_safe.multisend = MultiSend(ethereum_client, multisend, call_only=True)
 
-    token = auth_token or os.environ.get("SAFE_AUTH_TOKEN")
-    if token:
-        brownie_safe.transaction_service.http_session.headers["Authorization"] = f"Bearer {token}"
+    brownie_safe._transaction_service_base_url = base_url
+    brownie_safe._auth_token = auth_token or os.environ.get('SAFE_AUTH_TOKEN')
+    if not base_url:
+        queue_token = brownie_safe._auth_token or os.environ.get('SAFE_TRANSACTION_SERVICE_API_KEY')
+        brownie_safe._queue_service = _QueueService(ethereum_client.get_chain_id(), queue_token)
 
     return brownie_safe
- 

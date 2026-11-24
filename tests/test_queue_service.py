@@ -1,0 +1,156 @@
+from types import SimpleNamespace
+from unittest.mock import Mock
+
+import pytest
+from eth_utils import encode_hex, to_checksum_address
+from safe_eth.eth.constants import NULL_ADDRESS
+from safe_eth.safe.api import SafeAPIException
+from safe_eth.safe.safe_signature import SafeSignature, SafeSignatureContract
+from safe_eth.safe.safe_tx import SafeTx
+from safe_eth.safe.signatures import signature_to_bytes
+
+import brownie_safe as module
+
+ADDRESS = to_checksum_address('0xaabbcc' + '00' * 17)
+RECIPIENT = to_checksum_address('0x1122aabb' + '00' * 16)
+TX_URL = 'https://api.safe.global/queue/api/v1/multisig-transactions'
+
+
+def response(body=None, status=200):
+    return Mock(status_code=status, ok=status < 400, text=str(body), json=Mock(return_value=body))
+
+
+def transaction(**overrides):
+    fields = dict(
+        to=RECIPIENT, value=10**18, data=b'\x12\x34', operation=0,
+        safe_tx_gas=123, base_gas=456, gas_price=0, gas_token=NULL_ADDRESS,
+        refund_receiver=NULL_ADDRESS, safe_nonce=9,
+    )
+    fields.update(overrides)
+    return SafeTx(None, ADDRESS, safe_version='1.4.1', chain_id=1, **fields)
+
+
+@pytest.fixture
+def safe(monkeypatch):
+    instance = object.__new__(module.BrownieSafeBase)
+    instance.address = ADDRESS
+    instance.retrieve_nonce = Mock(return_value=8)
+    instance.build_multisig_tx = transaction
+    instance.ethereum_client = Mock(get_chain_id=Mock(return_value=1))
+    monkeypatch.delenv('SAFE_AUTH_TOKEN', raising=False)
+    monkeypatch.setenv('SAFE_TRANSACTION_SERVICE_API_KEY', 'test-key')
+    monkeypatch.setattr(module, 'web3', SimpleNamespace(provider=SimpleNamespace(endpoint_uri='http://localhost')))
+    monkeypatch.setattr(module, 'EthereumClient', Mock(return_value=instance.ethereum_client))
+    monkeypatch.setattr(module, 'Safe', Mock(return_value=Mock(get_version=Mock(return_value='1.4.1'))))
+    monkeypatch.setitem(module.PATCHED_SAFE_VERSIONS, '1.4.1', Mock(return_value=instance))
+    monkeypatch.setattr(module, 'MultiSend', Mock())
+    legacy_client = Mock(http_session=SimpleNamespace(headers={}))
+    monkeypatch.setattr(module, 'TransactionServiceApi', Mock(return_value=legacy_client))
+    return instance
+
+
+def test_propose_and_confirm(safe, monkeypatch):
+    module.BrownieSafe(ADDRESS)
+    session = safe._queue_service.http_session
+    assert session.headers['Authorization'] == 'Bearer test-key'
+    request = Mock(side_effect=[response(status=201), response(status=201), response(status=409)])
+    monkeypatch.setattr(session, 'request', request)
+    tx = transaction()
+    first = tx.sign(b'\x01' * 32)
+    second = tx.sign(b'\x02' * 32)
+
+    safe.post_transaction(tx)
+    safe.post_signature(tx, second)
+    safe.post_signature(tx, second)
+
+    proposal, confirmation, repeated_confirmation = request.call_args_list
+    assert proposal.args == ('POST', TX_URL)
+    assert proposal.kwargs['json'] == {
+        'safe': ADDRESS, 'chainId': 1, 'to': RECIPIENT, 'value': str(10**18),
+        'data': '0x1234', 'operation': 0, 'safeTxGas': '123', 'baseGas': '456',
+        'gasPrice': '0', 'gasToken': NULL_ADDRESS, 'refundReceiver': NULL_ADDRESS,
+        'nonce': '9', 'signatures': [encode_hex(first), encode_hex(second)], 'originName': 'Brownie Safe',
+    }
+    assert confirmation.args == ('POST', f'{TX_URL}/{encode_hex(tx.safe_tx_hash)}/signatures')
+    assert confirmation.kwargs['json'] == {'signatures': [encode_hex(second)]}
+    assert repeated_confirmation == confirmation
+    module.TransactionServiceApi.assert_not_called()
+
+
+def test_reposting_only_adds_missing_confirmations(safe, monkeypatch):
+    module.BrownieSafe(ADDRESS)
+    tx = transaction()
+    tx.sign(b'\x01' * 32)
+    already_signed = tx.signers[0].lower()
+    missing = tx.sign(b'\x02' * 32)
+    request = Mock(side_effect=[
+        response(status=409),
+        response({'confirmations': [{'owner': already_signed}]}),
+        response(status=201),
+        response({'detail': 'invalid signature'}, status=422),
+    ])
+    monkeypatch.setattr(safe._queue_service.http_session, 'request', request)
+
+    safe.post_transaction(tx)
+    assert request.call_args_list[1].args == ('GET', f'{TX_URL}/{encode_hex(tx.safe_tx_hash)}')
+    assert request.call_args_list[2].kwargs['json'] == {'signatures': [encode_hex(missing)]}
+    with pytest.raises(SafeAPIException, match='HTTP 422.*invalid signature'):
+        safe.post_signature(tx, missing)
+
+
+def test_pending_transactions_and_nonce(safe, monkeypatch):
+    module.BrownieSafe(ADDRESS)
+    tx = transaction(to=NULL_ADDRESS)
+    eoa_signature = tx.sign(b'\x01' * 32)
+    contract = SafeSignatureContract(
+        signature_to_bytes(0, int(RECIPIENT, 16), 65),
+        tx.safe_tx_hash, tx.safe_tx_hash_preimage, b'contract signature',
+    )
+    tx_hash = encode_hex(tx.safe_tx_hash)
+    records = {
+        'data': '0x1234', 'nonce': '9', 'to': None, 'operation': 0, 'value': str(10**18),
+        'safeTxGas': '123', 'baseGas': '456', 'gasPrice': '0', 'gasToken': None,
+        'refundReceiver': None, 'safeTxHash': tx_hash,
+        'confirmations': [
+            {'owner': RECIPIENT.lower(), 'signature': encode_hex(contract.export_signature())},
+            {'owner': tx.signers[0].lower(), 'signature': encode_hex(eoa_signature)},
+        ],
+    }
+    request = Mock(side_effect=[
+        response({'results': [{'nonce': '12'}]}),
+        response({'results': []}),
+        response({'results': [dict(records, nonce='7')], 'next': 'next-page'}),
+        response({'results': [records], 'next': None}),
+    ])
+    monkeypatch.setattr(safe._queue_service.http_session, 'request', request)
+
+    assert safe.pending_nonce() == 13
+    assert safe.pending_nonce() == 8
+    pending, = safe.pending_transactions
+    assert pending.safe_tx_hash == tx.safe_tx_hash
+    signatures = SafeSignature.parse_signature(pending.signatures, pending.safe_tx_hash)
+    assert [signature.owner for signature in signatures] == sorted([RECIPIENT, *tx.signers], key=str.lower)
+    assert signatures[0].contract_signature == b'contract signature'
+    calls = request.call_args_list
+    assert all(call.args == ('GET', f'{TX_URL}/queue') for call in calls)
+    assert [call.kwargs['params'] for call in calls] == [
+        {'safes': f'{ADDRESS}:1', 'nonceOrder': 'desc', 'limit': 1, 'offset': 0},
+        {'safes': f'{ADDRESS}:1', 'nonceOrder': 'desc', 'limit': 1, 'offset': 0},
+        {'safes': f'{ADDRESS}:1', 'nonceOrder': 'asc', 'limit': 100, 'offset': 0},
+        {'safes': f'{ADDRESS}:1', 'nonceOrder': 'asc', 'limit': 100, 'offset': 1},
+    ]
+
+
+def test_custom_base_url_keeps_transaction_service(safe):
+    base_url = 'https://custom.safe.example'
+    module.BrownieSafe(ADDRESS, base_url=base_url, auth_token='custom-key')
+    assert safe._queue_service is None
+    client = safe.transaction_service
+    assert module.TransactionServiceApi.call_args.args[2] == base_url
+    assert client.http_session.headers['Authorization'] == 'Bearer custom-key'
+    tx = transaction()
+    signature = tx.sign(b'\x01' * 32)
+    safe.post_transaction(tx)
+    safe.post_signature(tx, signature)
+    client.post_transaction.assert_called_once_with(tx)
+    client.post_signatures.assert_called_once_with(tx.safe_tx_hash, signature)

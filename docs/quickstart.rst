@@ -1,6 +1,8 @@
 Quickstart
 ================
 
+Set ``SAFE_AUTH_TOKEN`` to your `Safe API key`_ to read the pending queue, propose transactions, and submit confirmations.
+
 .. code-block:: bash
 
     pip install -U brownie-safe
@@ -22,3 +24,5 @@ Quickstart
     safe_tx = safe.multisend_from_receipts()
     safe.preview(safe_tx)
     safe.post_transaction(safe_tx)
+
+.. _Safe API key: https://docs.safe.global/core-api/how-to-use-api-keys
