@@ -1,17 +1,17 @@
 Installation
 ============
 
-You will need Python and pip installed, as well as Brownie_ and either of Anvil_, Hardhat_, or Ganache_ for the forked network functionality.
+You will need uv_ and one of Anvil_, Hardhat_, or Ganache_ for the forked network functionality.
 Make sure you have `Brownie networks`_ configured correctly.
 
-Then you can simply:
+From a local checkout, install Brownie Safe and its locked dependencies:
 
 .. code-block:: bash
 
-   uv pip install brownie-safe --pre
+   uv sync --locked
 
 
-.. _Brownie: https://eth-brownie.readthedocs.io/en/latest/install.html
+.. _uv: https://docs.astral.sh/uv/getting-started/installation/
 .. _Hardhat: https://hardhat.org/getting-started/#installation
 .. _Brownie networks: https://eth-brownie.readthedocs.io/en/latest/network-management.html
 .. _Anvil: https://book.getfoundry.sh/anvil/
