@@ -428,12 +428,10 @@ class BrownieSafeBase(metaclass=ABCMeta):
     @cached_property
     def transaction_service(self) -> TransactionServiceApi:
         """Client for the Transaction Service, including its indexed history."""
-        service = TransactionServiceApi(
+        return TransactionServiceApi(
             self.ethereum_client.get_network(), self.ethereum_client, self._transaction_service_base_url,
+            api_key=self._auth_token,
         )
-        if self._auth_token:
-            service.http_session.headers['Authorization'] = f'Bearer {self._auth_token}'
-        return service
 
     def estimate_gas(self, safe_tx: SafeTx) -> int:
         """
@@ -557,6 +555,7 @@ def BrownieSafe(address, base_url=None, multisend=None, auth_token=None):
     Create a BrownieSafe from an address or ENS name.
 
     Pass base_url to use a custom Safe Transaction Service for off-chain operations.
+    Use auth_token to authenticate to a custom service.
     """
     address = to_address(address)
     ethereum_client = EthereumClient(web3.provider.endpoint_uri)
@@ -566,9 +565,9 @@ def BrownieSafe(address, base_url=None, multisend=None, auth_token=None):
     brownie_safe.multisend = MultiSend(ethereum_client, multisend, call_only=True)
 
     brownie_safe._transaction_service_base_url = base_url
-    brownie_safe._auth_token = auth_token or os.environ.get('SAFE_AUTH_TOKEN')
     if not base_url:
-        brownie_safe._auth_token = brownie_safe._auth_token or os.environ.get('SAFE_TRANSACTION_SERVICE_API_KEY')
-        brownie_safe._queue_service = _QueueService(ethereum_client.get_chain_id(), brownie_safe._auth_token)
+        auth_token = auth_token or os.environ.get('SAFE_AUTH_TOKEN') or os.environ.get('SAFE_TRANSACTION_SERVICE_API_KEY')
+        brownie_safe._queue_service = _QueueService(ethereum_client.get_chain_id(), auth_token)
+    brownie_safe._auth_token = auth_token
 
     return brownie_safe
