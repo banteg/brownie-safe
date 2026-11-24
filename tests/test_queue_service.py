@@ -17,17 +17,26 @@ TX_URL = 'https://api.safe.global/queue/api/v1/multisig-transactions'
 
 
 def response(body=None, status=200):
-    return Mock(status_code=status, ok=status < 400, text=str(body), json=Mock(return_value=body))
+    return Mock(status_code=status, text=str(body), json=Mock(return_value=body))
 
 
-def transaction(**overrides):
+def transaction(*, safe_version='1.4.1', chain_id=1, **overrides):
     fields = dict(
         to=RECIPIENT, value=10**18, data=b'\x12\x34', operation=0,
         safe_tx_gas=123, base_gas=456, gas_price=0, gas_token=NULL_ADDRESS,
         refund_receiver=NULL_ADDRESS, safe_nonce=9,
     )
     fields.update(overrides)
-    return SafeTx(None, ADDRESS, safe_version='1.4.1', chain_id=1, **fields)
+    return SafeTx(None, ADDRESS, safe_version=safe_version, chain_id=chain_id, **fields)
+
+
+def record(tx, **overrides):
+    fields = {
+        'safe': ADDRESS.lower(), 'chainId': str(tx.chain_id), 'txHash': None,
+        'safeTxHash': encode_hex(tx.safe_tx_hash), 'confirmations': [], 'nonce': str(tx.safe_nonce),
+    }
+    fields.update(overrides)
+    return fields
 
 
 @pytest.fixture
@@ -53,11 +62,11 @@ def test_propose_and_confirm(safe, monkeypatch):
     module.BrownieSafe(ADDRESS)
     session = safe._queue_service.http_session
     assert session.headers['Authorization'] == 'Bearer test-key'
-    request = Mock(side_effect=[response(status=201), response(status=201), response(status=409)])
-    monkeypatch.setattr(session, 'request', request)
     tx = transaction()
     first = tx.sign(b'\x01' * 32)
     second = tx.sign(b'\x02' * 32)
+    request = Mock(side_effect=[response(record(tx), status=201), response(status=204), response(status=409)])
+    monkeypatch.setattr(session, 'request', request)
 
     safe.post_transaction(tx)
     safe.post_signature(tx, second)
@@ -85,7 +94,7 @@ def test_reposting_only_adds_missing_confirmations(safe, monkeypatch):
     missing = tx.sign(b'\x02' * 32)
     request = Mock(side_effect=[
         response(status=409),
-        response({'confirmations': [{'owner': already_signed}]}),
+        response(record(tx, confirmations=[{'owner': already_signed}])),
         response(status=201),
         response({'detail': 'invalid signature'}, status=422),
     ])
@@ -98,6 +107,52 @@ def test_reposting_only_adds_missing_confirmations(safe, monkeypatch):
         safe.post_signature(tx, missing)
 
 
+def test_reposting_retries_a_conflicted_batch(safe, monkeypatch):
+    module.BrownieSafe(ADDRESS)
+    tx = transaction()
+    tx.sign(b'\x01' * 32)
+    original_owner, = tx.signers
+    racing_signature = tx.sign(b'\x02' * 32)
+    racing_owner, = set(tx.signers) - {original_owner}
+    missing = tx.sign(b'\x03' * 32)
+    request = Mock(side_effect=[
+        response(status=409),
+        response(record(tx, confirmations=[{'owner': original_owner}])),
+        response(status=409),
+        response(record(tx, confirmations=[{'owner': original_owner}, {'owner': racing_owner}])),
+        response(status=201),
+    ])
+    monkeypatch.setattr(safe._queue_service.http_session, 'request', request)
+
+    safe.post_transaction(tx)
+    assert set(request.call_args_list[2].kwargs['json']['signatures']) == {
+        encode_hex(racing_signature), encode_hex(missing),
+    }
+    assert request.call_args_list[4].kwargs['json']['signatures'] == [encode_hex(missing)]
+
+
+@pytest.mark.parametrize('operation', ['confirm', 'repost', 'unsigned-repost'])
+def test_cross_chain_legacy_hash_cannot_add_a_confirmation(safe, monkeypatch, operation):
+    module.BrownieSafe(ADDRESS)
+    tx = transaction(safe_version='1.2.0')
+    other_chain = transaction(safe_version='1.2.0', chain_id=10)
+    assert other_chain.safe_tx_hash == tx.safe_tx_hash
+    get_transaction = response(record(other_chain))
+    repost = operation != 'confirm'
+    request = Mock(side_effect=[response(status=409), get_transaction] if repost else [get_transaction])
+    monkeypatch.setattr(safe._queue_service.http_session, 'request', request)
+
+    with pytest.raises(SafeAPIException, match='outside'):
+        if operation == 'unsigned-repost':
+            safe._queue_service.post_transaction(tx)
+        elif repost:
+            tx.sign(b'\x01' * 32)
+            safe.post_transaction(tx)
+        else:
+            safe.post_signature(tx, tx.sign(b'\x01' * 32))
+    assert [call.args[0] for call in request.call_args_list] == (['POST', 'GET'] if repost else ['GET'])
+
+
 def test_pending_transactions_and_nonce(safe, monkeypatch):
     module.BrownieSafe(ADDRESS)
     tx = transaction(to=NULL_ADDRESS)
@@ -106,21 +161,19 @@ def test_pending_transactions_and_nonce(safe, monkeypatch):
         signature_to_bytes(0, int(RECIPIENT, 16), 65),
         tx.safe_tx_hash, tx.safe_tx_hash_preimage, b'contract signature',
     )
-    tx_hash = encode_hex(tx.safe_tx_hash)
-    records = {
-        'data': '0x1234', 'nonce': '9', 'to': None, 'operation': 0, 'value': str(10**18),
-        'safeTxGas': '123', 'baseGas': '456', 'gasPrice': '0', 'gasToken': None,
-        'refundReceiver': None, 'safeTxHash': tx_hash,
-        'confirmations': [
+    queued = record(
+        tx, data='0x1234', to=None, operation=0, value=str(10**18),
+        safeTxGas='123', baseGas='456', gasPrice='0', gasToken=None, refundReceiver=None,
+        confirmations=[
             {'owner': RECIPIENT.lower(), 'signature': encode_hex(contract.export_signature())},
             {'owner': tx.signers[0].lower(), 'signature': encode_hex(eoa_signature)},
         ],
-    }
+    )
     request = Mock(side_effect=[
-        response({'results': [{'nonce': '12'}]}),
-        response({'results': []}),
-        response({'results': [dict(records, nonce='7')], 'next': 'next-page'}),
-        response({'results': [records], 'next': None}),
+        response({'results': [record(tx, nonce='12', txHash='0x01')], 'next': 'next-page'}),
+        response({'results': [], 'next': None}),
+        response({'results': [dict(queued, nonce='7'), dict(queued, nonce='8', txHash='0x01')], 'next': 'next-page'}),
+        response({'results': [queued], 'next': None}),
     ])
     monkeypatch.setattr(safe._queue_service.http_session, 'request', request)
 
@@ -137,8 +190,31 @@ def test_pending_transactions_and_nonce(safe, monkeypatch):
         {'safes': f'{ADDRESS}:1', 'nonceOrder': 'desc', 'limit': 1, 'offset': 0},
         {'safes': f'{ADDRESS}:1', 'nonceOrder': 'desc', 'limit': 1, 'offset': 0},
         {'safes': f'{ADDRESS}:1', 'nonceOrder': 'asc', 'limit': 100, 'offset': 0},
-        {'safes': f'{ADDRESS}:1', 'nonceOrder': 'asc', 'limit': 100, 'offset': 1},
+        {'safes': f'{ADDRESS}:1', 'nonceOrder': 'asc', 'limit': 100, 'offset': 2},
     ]
+
+
+@pytest.mark.parametrize('highest_only', [False, True])
+def test_pending_queue_rejects_an_empty_continuation_page(safe, monkeypatch, highest_only):
+    module.BrownieSafe(ADDRESS)
+    request = Mock(return_value=response({'results': [], 'next': 'next-page'}))
+    monkeypatch.setattr(safe._queue_service.http_session, 'request', request)
+    with pytest.raises(SafeAPIException, match='empty page'):
+        if highest_only:
+            safe.pending_nonce()
+        else:
+            _ = safe.pending_transactions
+
+
+def test_proposal_rejects_a_different_response_hash(safe, monkeypatch):
+    module.BrownieSafe(ADDRESS)
+    tx = transaction()
+    tx.sign(b'\x01' * 32)
+    request = Mock(return_value=response(record(tx, safeTxHash='0x' + '00' * 32), status=201))
+    monkeypatch.setattr(safe._queue_service.http_session, 'request', request)
+    with pytest.raises(SafeAPIException, match='different Safe transaction hash'):
+        safe.post_transaction(tx)
+    assert request.call_args.kwargs['allow_redirects'] is False
 
 
 def test_custom_base_url_keeps_transaction_service(safe):
