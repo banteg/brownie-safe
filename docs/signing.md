@@ -1,0 +1,59 @@
+# Signing
+
+Several options for signing transactions are available in Brownie Safe, including support for hardware wallets.
+
+Signatures are required, Gnosis [transaction service](https://safe-transaction.gnosis.io/) will only accept a transaction with an owner signature or from [a delegate](https://safe-transaction.gnosis.io/).
+
+## Local accounts
+
+This is the default signing method when you send a transaction.
+
+Import a private key or a keystore into Brownie to use it with Brownie Safe. Brownie accounts are encrypted at rest as .json keystores. See also Brownie's [Account management](https://eth-brownie.readthedocs.io/en/latest/account-management.html) documentation.
+
+```bash
+# Import a private key
+$ brownie accounts new ape
+Enter the private key you wish to add:
+
+# Import a .json keystore
+$ brownie accounts import ape keystore.json
+```
+
+Brownie Safe will prompt you for an account (unless supplied as an argument) and Brownie will prompt you for a password.
+
+```python
+>>> safe.sign_transaction(safe_tx)
+signer (ape, safe): ape
+Enter password for "ape":
+
+>>> safe.sign_transaction(safe_tx, 'ape')
+Enter password for "ape":
+```
+
+If you prefer to manage accounts outside Brownie, e.g. use a seed phrase, you can pass a `LocalAccount` instance:
+
+```python
+>>> from eth_account import Account
+>>> key = Account.from_mnemonic('safe grape tape escape...')
+>>> safe.sign_transaction(safe_tx, key)
+```
+
+## Frame
+
+If you wish to use a hardware wallet, your best option is [Frame](https://frame.sh/). It supports Ledger, Trezor, and Lattice. You can also use with with keystore accounts, they are called Ring Signers in Frame.
+
+To sign, select an account in Frame and do this:
+
+```python
+>>> safe.sign_with_frame(safe_tx)
+```
+
+Frame exposes an RPC connection at `http://127.0.0.1:1248` and exposes the currently selected account as `eth_accounts[0]`. Brownie Safe sends the payload as `eth_signTypedData_v4`, which must be supported by your signer device.
+
+## Trezor
+
+Alternative method for Trezor models and firmware versions which don't support EIP-712 using `eth_sign`:
+
+```python
+>>> safe.sign_with_trezor(safe_tx)
+```

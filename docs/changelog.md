@@ -1,65 +1,53 @@
-Changelog
-=========
+# Changelog
 
-0.9.3
------
+## 0.9.3
 
 - support authenticated Safe Transaction Service API
 
-0.9.2
------
+## 0.9.2
 
 - switch from gnosis imports to safe_eth
 - update safe-eth-py compatibility and dependency constraints
 
-0.9.1
------
+## 0.9.1
 
 - fix pending transaction nonce handling
 - document prerelease installation in the README
 
-0.9.0
------
+## 0.9.0 { #v0-9-0 }
 
 - add support for latest brownie
 - support latest safe-eth-py factory
 - remove backports
 
-
-0.8.0
------
+## 0.8.0 { #id1 }
 
 - add anvil support
 - speed up simulations by writing to storage instead of sending approveHash transactions
 - dropped ganache support
 
-0.7.2
------
+## 0.7.2 { #id2 }
 
 - rename the package to brownie-safe
 - backport safe transaction service
 - switch frame to the correct network
 - update safe api endpoints
 
-0.6.0
------
+## 0.6.0 { #id3 }
 
 - add support for boba, fantom, optimism
 - preview including the pending txs
 
-0.5.0
------
+## 0.5.0 { #id4 }
 
 - execute transaction with frame
 - trezor eip-712 signing support
 
-0.4.0
------
+## 0.4.0 { #id5 }
 
 - trezor signing support
 
-0.3.0
------
+## 0.3.0 { #id6 }
 
 - hardware wallet support via frame
 - submit signatures to transaction service
@@ -68,8 +56,7 @@ Changelog
 - convert confirmations to signatures
 - expanded documentation about signing
 
-0.2.0
------
+## 0.2.0 { #id7 }
 
 - add support for safe contracts 1.3.0
 - switch to multicall 1.3.0 call only

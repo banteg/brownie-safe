@@ -1,0 +1,70 @@
+[project]
+site_name = "Brownie Safe"
+site_url = "https://safe.ape.tax/"
+repo_url = "https://github.com/banteg/brownie-safe"
+use_directory_urls = false
+nav = [
+    { "Home" = "index.md" },
+    { "Introduction" = "intro.md" },
+    { "Quickstart" = "quickstart.md" },
+    { "Installation" = "install.md" },
+    { "Signing" = "signing.md" },
+    { "Detailed example" = "detailed.md" },
+    { "Useful links" = "useful.md" },
+    { "Changelog" = "changelog.md" },
+    { "API docs" = "brownie_safe.md" },
+]
+
+[project.plugins.mkdocstrings.handlers.python]
+paths = ["."]
+
+[project.plugins.mkdocstrings.handlers.python.options]
+allow_inspection = false
+show_root_heading = true
+show_if_no_docstring = true
+show_source = false
+
+[project.plugins.redirects.redirect_maps]
+"genindex.md" = "brownie_safe.md"
+"py-modindex.md" = "brownie_safe.md"
+"search.md" = "index.md"
+
+# The old site documented BrownieSafe as a class.
+"brownie_safe.md#brownie_safe.BrownieSafe.account" = "brownie_safe.md#brownie_safe.BrownieSafeBase.account"
+"brownie_safe.md#brownie_safe.BrownieSafe.confirmations_to_signatures" = "brownie_safe.md#brownie_safe.BrownieSafeBase.confirmations_to_signatures"
+"brownie_safe.md#brownie_safe.BrownieSafe.contract" = "brownie_safe.md#brownie_safe.BrownieSafeBase.contract"
+"brownie_safe.md#brownie_safe.BrownieSafe.estimate_gas" = "brownie_safe.md#brownie_safe.BrownieSafeBase.estimate_gas"
+"brownie_safe.md#brownie_safe.BrownieSafe.execute_transaction" = "brownie_safe.md#brownie_safe.BrownieSafeBase.execute_transaction"
+"brownie_safe.md#brownie_safe.BrownieSafe.execute_transaction_with_frame" = "brownie_safe.md#brownie_safe.BrownieSafeBase.execute_transaction_with_frame"
+"brownie_safe.md#brownie_safe.BrownieSafe.get_signer" = "brownie_safe.md#brownie_safe.BrownieSafeBase.get_signer"
+"brownie_safe.md#brownie_safe.BrownieSafe.multisend_from_receipts" = "brownie_safe.md#brownie_safe.BrownieSafeBase.multisend_from_receipts"
+"brownie_safe.md#brownie_safe.BrownieSafe.pending_nonce" = "brownie_safe.md#brownie_safe.BrownieSafeBase.pending_nonce"
+"brownie_safe.md#brownie_safe.BrownieSafe.pending_transactions" = "brownie_safe.md#brownie_safe.BrownieSafeBase.pending_transactions"
+"brownie_safe.md#brownie_safe.BrownieSafe.post_signature" = "brownie_safe.md#brownie_safe.BrownieSafeBase.post_signature"
+"brownie_safe.md#brownie_safe.BrownieSafe.post_transaction" = "brownie_safe.md#brownie_safe.BrownieSafeBase.post_transaction"
+"brownie_safe.md#brownie_safe.BrownieSafe.preview" = "brownie_safe.md#brownie_safe.BrownieSafeBase.preview"
+"brownie_safe.md#brownie_safe.BrownieSafe.preview_pending" = "brownie_safe.md#brownie_safe.BrownieSafeBase.preview_pending"
+"brownie_safe.md#brownie_safe.BrownieSafe.preview_tx" = "brownie_safe.md#brownie_safe.BrownieSafeBase.preview_tx"
+"brownie_safe.md#brownie_safe.BrownieSafe.set_storage" = "brownie_safe.md#brownie_safe.BrownieSafeBase.set_storage"
+"brownie_safe.md#brownie_safe.BrownieSafe.sign_transaction" = "brownie_safe.md#brownie_safe.BrownieSafeBase.sign_transaction"
+"brownie_safe.md#brownie_safe.BrownieSafe.sign_with_frame" = "brownie_safe.md#brownie_safe.BrownieSafeBase.sign_with_frame"
+"brownie_safe.md#brownie_safe.BrownieSafe.sign_with_trezor" = "brownie_safe.md#brownie_safe.BrownieSafeBase.sign_with_trezor"
+"brownie_safe.md#brownie_safe.BrownieSafe.tx_from_receipt" = "brownie_safe.md#brownie_safe.BrownieSafeBase.tx_from_receipt"
+
+# These backports were removed in 0.9.0.
+"brownie_safe.md#brownie_safe.EthereumNetworkBackport" = "changelog.md#v0-9-0"
+"brownie_safe.md#brownie_safe.EthereumNetworkBackport.ARBITRUM_ONE" = "changelog.md#v0-9-0"
+"brownie_safe.md#brownie_safe.EthereumNetworkBackport.AURORA_MAINNET" = "changelog.md#v0-9-0"
+"brownie_safe.md#brownie_safe.EthereumNetworkBackport.AVALANCHE_C_CHAIN" = "changelog.md#v0-9-0"
+"brownie_safe.md#brownie_safe.EthereumNetworkBackport.BINANCE_SMART_CHAIN_MAINNET" = "changelog.md#v0-9-0"
+"brownie_safe.md#brownie_safe.EthereumNetworkBackport.BOBA_NETWORK" = "changelog.md#v0-9-0"
+"brownie_safe.md#brownie_safe.EthereumNetworkBackport.ENERGY_WEB_CHAIN" = "changelog.md#v0-9-0"
+"brownie_safe.md#brownie_safe.EthereumNetworkBackport.ENERGY_WEB_VOLTA_TESTNET" = "changelog.md#v0-9-0"
+"brownie_safe.md#brownie_safe.EthereumNetworkBackport.FANTOM" = "changelog.md#v0-9-0"
+"brownie_safe.md#brownie_safe.EthereumNetworkBackport.GNOSIS" = "changelog.md#v0-9-0"
+"brownie_safe.md#brownie_safe.EthereumNetworkBackport.GOERLI" = "changelog.md#v0-9-0"
+"brownie_safe.md#brownie_safe.EthereumNetworkBackport.MAINNET" = "changelog.md#v0-9-0"
+"brownie_safe.md#brownie_safe.EthereumNetworkBackport.OPTIMISM" = "changelog.md#v0-9-0"
+"brownie_safe.md#brownie_safe.EthereumNetworkBackport.POLYGON" = "changelog.md#v0-9-0"
+"brownie_safe.md#brownie_safe.TransactionServiceBackport" = "changelog.md#v0-9-0"
+"brownie_safe.md#brownie_safe.TransactionServiceBackport.URL_BY_NETWORK" = "changelog.md#v0-9-0"

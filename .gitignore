@@ -8,3 +8,5 @@ env/
 scripts/
 __pycache__/
 .venv/
+/.cache/
+/site/

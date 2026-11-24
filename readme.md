@@ -35,3 +35,13 @@ safe.post_transaction(safe_tx)
 ```
 
 See [Documentation](https://safe.ape.tax/) for more examples and full reference.
+
+## Build the docs
+
+From the repository root, use [uv](https://docs.astral.sh/uv/) to build the site:
+
+```sh
+uv run --no-project --python 3.12 --with-requirements docs-requirements.txt zensical build --clean --strict
+```
+
+Use `zensical serve` in place of `zensical build --clean --strict` to preview changes locally.
