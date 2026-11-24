@@ -35,3 +35,14 @@ safe.post_transaction(safe_tx)
 ```
 
 See [Documentation](https://safe.ape.tax/) for more examples and full reference.
+
+## Development
+
+From a local checkout, install the locked dependencies and run the Queue Service tests:
+
+```bash
+uv sync --locked
+uv run --locked pytest tests/test_queue_service.py
+```
+
+Use `uv build` to build the wheel and source distribution.
