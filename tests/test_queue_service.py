@@ -69,7 +69,7 @@ def test_propose_and_confirm(safe, monkeypatch):
     monkeypatch.setattr(session, 'request', request)
 
     safe.post_transaction(tx)
-    safe.post_signature(tx, second)
+    safe.post_signature(tx, encode_hex(second))
     safe.post_signature(tx, second)
 
     proposal, confirmation, repeated_confirmation = request.call_args_list
@@ -84,6 +84,7 @@ def test_propose_and_confirm(safe, monkeypatch):
     assert confirmation.kwargs['json'] == {'signatures': [encode_hex(second)]}
     assert repeated_confirmation == confirmation
     module.TransactionServiceApi.assert_not_called()
+    assert safe.transaction_service.http_session.headers['Authorization'] == 'Bearer test-key'
 
 
 def test_reposting_only_adds_missing_confirmations(safe, monkeypatch):
@@ -131,6 +132,48 @@ def test_reposting_retries_a_conflicted_batch(safe, monkeypatch):
     assert request.call_args_list[4].kwargs['json']['signatures'] == [encode_hex(missing)]
 
 
+def test_packed_confirmations_repack_contract_offsets_and_retry(safe, monkeypatch):
+    module.BrownieSafe(ADDRESS)
+    tx = transaction()
+    eoa, = SafeSignature.parse_signature(tx.sign(b'\x01' * 32), tx.safe_tx_hash)
+    contract = SafeSignatureContract(
+        signature_to_bytes(0, int(RECIPIENT, 16), 65),
+        tx.safe_tx_hash, tx.safe_tx_hash_preimage, b'contract signature',
+    )
+    packed = SafeSignature.export_signatures([eoa, contract])
+    request = Mock(side_effect=[
+        response(status=409), response(record(tx, confirmations=[{'owner': eoa.owner}])), response(status=201),
+    ])
+    monkeypatch.setattr(safe._queue_service.http_session, 'request', request)
+
+    safe.post_signature(tx, packed)
+    assert request.call_args_list[0].kwargs['json']['signatures'] == [
+        encode_hex(contract.export_signature()), encode_hex(eoa.export_signature()),
+    ]
+    assert request.call_args_list[2].kwargs['json']['signatures'] == [encode_hex(contract.export_signature())]
+
+
+@pytest.mark.parametrize('is_owner', [False, True])
+def test_repost_checks_current_ownership_of_former_proposer(safe, monkeypatch, is_owner):
+    module.BrownieSafe(ADDRESS)
+    tx = transaction()
+    signature = tx.sign(b'\x01' * 32)
+    owner, = tx.signers
+    owner_call = Mock(return_value=Mock(call=Mock(return_value=is_owner)))
+    tx.contract = SimpleNamespace(functions=SimpleNamespace(isOwner=owner_call))
+    replies = [response(status=409), response(record(tx, proposedBy=owner.lower(), proposedVia='DELEGATE'))]
+    if is_owner:
+        replies.append(response(status=201))
+    request = Mock(side_effect=replies)
+    monkeypatch.setattr(safe._queue_service.http_session, 'request', request)
+
+    safe.post_transaction(tx)
+    owner_call.assert_called_once_with(owner)
+    assert request.call_count == len(replies)
+    if is_owner:
+        assert request.call_args.kwargs['json']['signatures'] == [encode_hex(signature)]
+
+
 @pytest.mark.parametrize('operation', ['confirm', 'repost', 'unsigned-repost'])
 def test_cross_chain_legacy_hash_cannot_add_a_confirmation(safe, monkeypatch, operation):
     module.BrownieSafe(ADDRESS)
@@ -161,12 +204,14 @@ def test_pending_transactions_and_nonce(safe, monkeypatch):
         signature_to_bytes(0, int(RECIPIENT, 16), 65),
         tx.safe_tx_hash, tx.safe_tx_hash_preimage, b'contract signature',
     )
+    approver = to_checksum_address('0x' + 'ff' * 20)
     queued = record(
         tx, data='0x1234', to=None, operation=0, value=str(10**18),
         safeTxGas='123', baseGas='456', gasPrice='0', gasToken=None, refundReceiver=None,
         confirmations=[
             {'owner': RECIPIENT.lower(), 'signature': encode_hex(contract.export_signature())},
             {'owner': tx.signers[0].lower(), 'signature': encode_hex(eoa_signature)},
+            {'owner': approver.lower(), 'signature': None, 'signatureType': 'APPROVED_HASH'},
         ],
     )
     request = Mock(side_effect=[
@@ -182,8 +227,9 @@ def test_pending_transactions_and_nonce(safe, monkeypatch):
     pending, = safe.pending_transactions
     assert pending.safe_tx_hash == tx.safe_tx_hash
     signatures = SafeSignature.parse_signature(pending.signatures, pending.safe_tx_hash)
-    assert [signature.owner for signature in signatures] == sorted([RECIPIENT, *tx.signers], key=str.lower)
+    assert [signature.owner for signature in signatures] == sorted([RECIPIENT, *tx.signers, approver], key=str.lower)
     assert signatures[0].contract_signature == b'contract signature'
+    assert signatures[-1].v == 1
     calls = request.call_args_list
     assert all(call.args == ('GET', f'{TX_URL}/queue') for call in calls)
     assert [call.kwargs['params'] for call in calls] == [
@@ -217,13 +263,14 @@ def test_proposal_rejects_a_different_response_hash(safe, monkeypatch):
     assert request.call_args.kwargs['allow_redirects'] is False
 
 
-def test_custom_base_url_keeps_transaction_service(safe):
+@pytest.mark.parametrize('auth_token', [None, 'custom-key'])
+def test_custom_base_url_keeps_transaction_service(safe, auth_token):
     base_url = 'https://custom.safe.example'
-    module.BrownieSafe(ADDRESS, base_url=base_url, auth_token='custom-key')
+    module.BrownieSafe(ADDRESS, base_url=base_url, auth_token=auth_token)
     assert safe._queue_service is None
     client = safe.transaction_service
     assert module.TransactionServiceApi.call_args.args[2] == base_url
-    assert client.http_session.headers['Authorization'] == 'Bearer custom-key'
+    assert client.http_session.headers == ({'Authorization': f'Bearer {auth_token}'} if auth_token else {})
     tx = transaction()
     signature = tx.sign(b'\x01' * 32)
     safe.post_transaction(tx)

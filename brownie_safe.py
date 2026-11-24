@@ -38,6 +38,15 @@ class ApiError(Exception):
     pass
 
 
+def _confirmation_signature(confirmation):
+    signature = confirmation['signature']
+    if signature is not None:
+        return HexBytes(signature)
+    if confirmation.get('signatureType') == 'APPROVED_HASH':
+        return signature_to_bytes(1, int(confirmation['owner'], 16), 0)
+    raise SafeAPIException('Safe confirmation is missing its signature')
+
+
 class _QueueService:
     transactions_url = 'https://api.safe.global/queue/api/v1/multisig-transactions'
 
@@ -109,7 +118,7 @@ class _QueueService:
         })
         if response.status_code == 409:
             # The legacy proposal endpoint also accepted new confirmations on existing proposals.
-            self._confirm_reposted_transaction(safe_tx, signatures)
+            self._confirm_missing(safe_tx, signatures, repost=True)
         else:
             self._check_transaction(response.json(), safe_tx.safe_address, safe_tx_hash)
 
@@ -123,19 +132,21 @@ class _QueueService:
         signatures = [
             signature
             for confirmation in transaction['confirmations']
-            for signature in SafeSignature.parse_signature(confirmation['signature'], safe_tx.safe_tx_hash)
+            for signature in SafeSignature.parse_signature(_confirmation_signature(confirmation), safe_tx.safe_tx_hash)
         ]
         return bytes(SafeSignature.export_signatures(signatures))
 
-    def _confirm_reposted_transaction(self, safe_tx, signatures):
+    def _confirm_missing(self, safe_tx, signatures, *, repost=False):
         remaining = {signature.owner.lower(): signature.export_signature() for signature in signatures}
         previous_size = None
         while True:
             transaction = self._get_transaction(safe_tx)
             for confirmation in transaction['confirmations']:
                 remaining.pop(confirmation['owner'].lower(), None)
-            if proposer := transaction.get('proposedBy'):
-                remaining.pop(proposer.lower(), None)
+            proposer = transaction.get('proposedBy') if repost else None
+            if proposer and proposer.lower() in remaining:
+                if not safe_tx.contract.functions.isOwner(to_checksum_address(proposer)).call():
+                    remaining.pop(proposer.lower())
             if not remaining:
                 return
             if len(remaining) == previous_size:
@@ -155,8 +166,13 @@ class _QueueService:
         # Pre-1.3 Safe hashes can match across chains; the confirmation endpoint only takes a hash.
         if 'chainId' not in safe_tx.eip712_structured_data['domain']:
             self._get_transaction(safe_tx)
-        # A conflict on this single-signature request means the owner already confirmed.
-        self._post_signatures(safe_tx_hash, [HexBytes(signature)])
+        signatures = SafeSignature.parse_signature(HexBytes(signature), safe_tx_hash)
+        if not signatures:
+            raise SafeAPIException('Expected at least one Safe signature')
+        response = self._post_signatures(safe_tx_hash, [signature.export_signature() for signature in signatures])
+        # A conflict cancels a batch. A single signature conflict means its owner already confirmed.
+        if response.status_code == 409 and len(signatures) > 1:
+            self._confirm_missing(safe_tx, signatures)
 
 
 class ContractWrapper:
@@ -406,7 +422,7 @@ class BrownieSafeBase(metaclass=ABCMeta):
         Convert service confirmations to combined signatures.
         """
         sorted_confirmations = sorted(confirmations, key=lambda conf: int(conf['owner'], 16))
-        signatures = [bytes(HexBytes(conf['signature'])) for conf in sorted_confirmations]
+        signatures = [_confirmation_signature(conf) for conf in sorted_confirmations]
         return b''.join(signatures)
 
     @cached_property
@@ -552,7 +568,7 @@ def BrownieSafe(address, base_url=None, multisend=None, auth_token=None):
     brownie_safe._transaction_service_base_url = base_url
     brownie_safe._auth_token = auth_token or os.environ.get('SAFE_AUTH_TOKEN')
     if not base_url:
-        queue_token = brownie_safe._auth_token or os.environ.get('SAFE_TRANSACTION_SERVICE_API_KEY')
-        brownie_safe._queue_service = _QueueService(ethereum_client.get_chain_id(), queue_token)
+        brownie_safe._auth_token = brownie_safe._auth_token or os.environ.get('SAFE_TRANSACTION_SERVICE_API_KEY')
+        brownie_safe._queue_service = _QueueService(ethereum_client.get_chain_id(), brownie_safe._auth_token)
 
     return brownie_safe
