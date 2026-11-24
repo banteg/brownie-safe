@@ -8,14 +8,16 @@ Brownie Safe allows you to iteratively build complex multi-step Gnosis Safe tran
 
 ## Installation
 
-```
-uv pip install brownie-safe --pre
+From a local checkout, install Brownie Safe and its locked dependencies with uv:
+
+```bash
+uv sync --locked
 ```
 
 ## Quickstart
 
 ```bash
-brownie console --network mainnet-fork
+uv run --locked brownie console --network mainnet-fork
 ```
 
 ```python
@@ -35,3 +37,13 @@ safe.post_transaction(safe_tx)
 ```
 
 See [Documentation](https://safe.ape.tax/) for more examples and full reference.
+
+## Development
+
+Run the Queue Service tests from the synced checkout:
+
+```bash
+uv run --locked pytest tests/test_queue_service.py
+```
+
+Use `uv build` to build the wheel and source distribution.

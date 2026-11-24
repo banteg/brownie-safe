@@ -3,10 +3,11 @@ Quickstart
 
 Set ``SAFE_AUTH_TOKEN`` to your `Safe API key`_ to read the pending queue, propose transactions, and submit confirmations.
 
+From the :doc:`synced checkout <install>`, start the Brownie console:
+
 .. code-block:: bash
 
-    pip install -U brownie-safe
-    brownie console --network mainnet-fork
+    uv run --locked brownie console --network mainnet-fork
 
 
 .. code-block:: python
