@@ -1,7 +1,5 @@
 # Introduction
 
-Since multisig signers are usually slow to fulfill their duties, it's common to batch multiple actions and send them as one transaction. Batching also serves as a rudimentary zap if you are not concerned about the exactly matching in/out values and allow for some slippage.
+A Safe can batch several calls into a single transaction for its owners to review, sign, and execute. [Safe Wallet's Transaction Builder](https://help.safe.global/articles/4180673514-transaction-builder) provides a visual editor for these batches.
 
-Gnosis Safe has an excellent Transaction Builder app that allows scaffolding complex interactions. This approach is usually faster and cheaper than deploying a bespoke contract for every transaction.
-
-Brownie Safe expands on this idea. It allows you to use multisig as a regular account and then convert the transaction history into one multisend transaction and make sure it works before it hits the signers.
+Brownie Safe lets you build the batch from Python. Run your calls as the Safe account on a local fork, collect their Brownie receipts, and turn them into one MultiSend transaction. Preview the batch through the Safe contract before proposing it to the hosted [Safe Queue Service](https://docs.safe.global/core-api/safe-queue-service-overview).

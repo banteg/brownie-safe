@@ -1,10 +1,12 @@
+from functools import partial
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 from eth_utils import encode_hex, to_checksum_address
+from safe_eth.eth import EthereumNetwork
 from safe_eth.eth.constants import NULL_ADDRESS
-from safe_eth.safe.api import SafeAPIException
+from safe_eth.safe.api import SafeAPIException, TransactionServiceApi
 from safe_eth.safe.safe_signature import SafeSignature, SafeSignatureContract
 from safe_eth.safe.safe_tx import SafeTx
 from safe_eth.safe.signatures import signature_to_bytes
@@ -45,7 +47,9 @@ def safe(monkeypatch):
     instance.address = ADDRESS
     instance.retrieve_nonce = Mock(return_value=8)
     instance.build_multisig_tx = transaction
-    instance.ethereum_client = Mock(get_chain_id=Mock(return_value=1))
+    instance.ethereum_client = Mock(
+        get_chain_id=Mock(return_value=1), get_network=Mock(return_value=EthereumNetwork.MAINNET),
+    )
     monkeypatch.delenv('SAFE_AUTH_TOKEN', raising=False)
     monkeypatch.setenv('SAFE_TRANSACTION_SERVICE_API_KEY', 'test-key')
     monkeypatch.setattr(module, 'web3', SimpleNamespace(provider=SimpleNamespace(endpoint_uri='http://localhost')))
@@ -53,8 +57,7 @@ def safe(monkeypatch):
     monkeypatch.setattr(module, 'Safe', Mock(return_value=Mock(get_version=Mock(return_value='1.4.1'))))
     monkeypatch.setitem(module.PATCHED_SAFE_VERSIONS, '1.4.1', Mock(return_value=instance))
     monkeypatch.setattr(module, 'MultiSend', Mock())
-    legacy_client = Mock(http_session=SimpleNamespace(headers={}))
-    monkeypatch.setattr(module, 'TransactionServiceApi', Mock(return_value=legacy_client))
+    monkeypatch.setattr(module, 'TransactionServiceApi', Mock(return_value=Mock()))
     return instance
 
 
@@ -84,7 +87,8 @@ def test_propose_and_confirm(safe, monkeypatch):
     assert confirmation.kwargs['json'] == {'signatures': [encode_hex(second)]}
     assert repeated_confirmation == confirmation
     module.TransactionServiceApi.assert_not_called()
-    assert safe.transaction_service.http_session.headers['Authorization'] == 'Bearer test-key'
+    _ = safe.transaction_service
+    assert module.TransactionServiceApi.call_args.kwargs['api_key'] == 'test-key'
 
 
 def test_reposting_only_adds_missing_confirmations(safe, monkeypatch):
@@ -270,10 +274,37 @@ def test_custom_base_url_keeps_transaction_service(safe, auth_token):
     assert safe._queue_service is None
     client = safe.transaction_service
     assert module.TransactionServiceApi.call_args.args[2] == base_url
-    assert client.http_session.headers == ({'Authorization': f'Bearer {auth_token}'} if auth_token else {})
+    assert module.TransactionServiceApi.call_args.kwargs['api_key'] == auth_token
     tx = transaction()
     signature = tx.sign(b'\x01' * 32)
     safe.post_transaction(tx)
     safe.post_signature(tx, signature)
     client.post_transaction.assert_called_once_with(tx)
     client.post_signatures.assert_called_once_with(tx.safe_tx_hash, signature)
+
+
+@pytest.mark.parametrize(('base_url', 'auth_token', 'legacy_token', 'expected_key'), [
+    (None, None, None, 'test-key'),
+    (None, None, 'legacy-key', 'legacy-key'),
+    (None, 'explicit-key', 'legacy-key', 'explicit-key'),
+    ('https://custom.safe.example', None, None, None),
+    ('https://custom.safe.example', 'custom-key', 'legacy-key', 'custom-key'),
+    ('https://custom.safe.example', None, 'legacy-key', None),
+])
+def test_transaction_service_sends_only_the_selected_api_key(
+    safe, monkeypatch, base_url, auth_token, legacy_token, expected_key,
+):
+    # The SDK captures its environment-based default when the module is imported.
+    monkeypatch.setattr(module, 'TransactionServiceApi', partial(TransactionServiceApi, api_key='test-key'))
+    if legacy_token:
+        monkeypatch.setenv('SAFE_AUTH_TOKEN', legacy_token)
+    module.BrownieSafe(ADDRESS, base_url=base_url, auth_token=auth_token)
+    service = safe.transaction_service
+    service.http_session.trust_env = False
+    send = Mock(return_value=Mock(ok=True, json=Mock(return_value={'results': []})))
+    monkeypatch.setattr(service.http_session, 'send', send)
+
+    assert service.get_transactions(ADDRESS) == []
+    request = send.call_args.args[0]
+    assert request.url.startswith(base_url or 'https://api.safe.global/')
+    assert request.headers.get('Authorization') == (f'Bearer {expected_key}' if expected_key else None)

@@ -1,26 +1,29 @@
-[tool.poetry]
+[project]
 name = "brownie-safe"
 version = "0.9.3"
 description = "Build complex Gnosis Safe transactions and safely preview them in a forked environment."
-authors = ["banteg"]
+authors = [{ name = "banteg" }]
 license = "MIT"
-repository = "https://github.com/banteg/brownie-safe"
 readme = "readme.md"
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "eth-brownie==1.22.2",
+    # Newer Safe SDK releases require safe-pysha3>=1.0.7; Brownie pins 1.0.5.
+    "safe-eth-py==7.26.1",
+    "click>=8",
+    # Hardware signing uses the client API that trezorlib 0.20 replaced.
+    "trezor>=0.13.8,<0.20",
+]
 
-[tool.poetry.dependencies]
-python = ">=3.10,<3.13"
-# eth-brownie v1.20.7 requires web3==6.15.1
-eth-brownie = ">=1.20.7"
-# safe-eth-py v6.0.0 renames gnosis to safe_eth
-# safe-eth-py v7.0.0 requires web3>=7.0.0
-safe-eth-py = ">=6.0.0,<7"
-trezor = ">=0.13.8"
-
-[tool.poetry.dev-dependencies]
+[project.urls]
+Repository = "https://github.com/banteg/brownie-safe"
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["setuptools>=77.0.3"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["brownie_safe"]
 
 [tool.ruff]
 ignore = ['E501']

@@ -1,59 +1,41 @@
 # Signing
 
-Several options for signing transactions are available in Brownie Safe, including support for hardware wallets.
-
-Signatures are required, Gnosis [transaction service](https://safe-transaction.gnosis.io/) will only accept a transaction with an owner signature or from [a delegate](https://safe-transaction.gnosis.io/).
+Brownie Safe can sign with a local Brownie account, Frame, or a Trezor. On the hosted [Safe Queue Service](https://docs.safe.global/core-api/safe-queue-service-overview), an owner or a delegate can sign a proposal. Additional confirmations must come from Safe owners. The [Safe API key](install.md#set-up-hosted-safe-access) authenticates the HTTP requests. The transaction signature authorizes the proposal or confirmation.
 
 ## Local accounts
 
-This is the default signing method when you send a transaction.
-
-Import a private key or a keystore into Brownie to use it with Brownie Safe. Brownie accounts are encrypted at rest as .json keystores. See also Brownie's [Account management](https://eth-brownie.readthedocs.io/en/latest/account-management.html) documentation.
+This is the default signing method when `post_transaction` needs a signature. Import a private key or encrypted keystore into Brownie. See [Brownie account management](https://eth-brownie.readthedocs.io/en/latest/account-management.html).
 
 ```bash
-# Import a private key
-$ brownie accounts new ape
-Enter the private key you wish to add:
-
-# Import a .json keystore
-$ brownie accounts import ape keystore.json
+uv run --locked brownie accounts new ape
+# Or import an existing keystore
+uv run --locked brownie accounts import ape keystore.json
 ```
 
-Brownie Safe will prompt you for an account (unless supplied as an argument) and Brownie will prompt you for a password.
+Pass the name of an imported account or a Brownie `LocalAccount` instance. Brownie prompts for the keystore password. Omit the signer argument to choose an account interactively.
 
 ```python
->>> safe.sign_transaction(safe_tx)
-signer (ape, safe): ape
-Enter password for "ape":
-
->>> safe.sign_transaction(safe_tx, 'ape')
-Enter password for "ape":
-```
-
-If you prefer to manage accounts outside Brownie, e.g. use a seed phrase, you can pass a `LocalAccount` instance:
-
-```python
->>> from eth_account import Account
->>> key = Account.from_mnemonic('safe grape tape escape...')
->>> safe.sign_transaction(safe_tx, key)
+signature = safe.sign_transaction(safe_tx, "ape")
 ```
 
 ## Frame
 
-If you wish to use a hardware wallet, your best option is [Frame](https://frame.sh/). It supports Ledger, Trezor, and Lattice. You can also use with with keystore accounts, they are called Ring Signers in Frame.
-
-To sign, select an account in Frame and do this:
+Connect [Frame](https://frame.sh/), select the Safe signer, and approve the connection and signature prompts.
 
 ```python
->>> safe.sign_with_frame(safe_tx)
+signature = safe.sign_with_frame(safe_tx)
 ```
 
-Frame exposes an RPC connection at `http://127.0.0.1:1248` and exposes the currently selected account as `eth_accounts[0]`. Brownie Safe sends the payload as `eth_signTypedData_v4`, which must be supported by your signer device.
+Brownie Safe reads the first account Frame exposes at `http://127.0.0.1:1248` and requests an `eth_signTypedData_v4` signature. Use a signer that supports this method.
 
 ## Trezor
 
-Alternative method for Trezor models and firmware versions which don't support EIP-712 using `eth_sign`:
+Connect your Trezor and verify the signing request on the device.
 
 ```python
->>> safe.sign_with_trezor(safe_tx)
+signature = safe.sign_with_trezor(safe_tx)
 ```
+
+Brownie Safe uses EIP-712 signing for a Model T with firmware 2.4.3 or later. Its other signing path uses an `eth_sign` signature. Pass `force_eth_sign=True` to select that path explicitly, or `use_passphrase=True` to request a passphrase.
+
+All three methods return the signature and add it to `safe_tx` if that signer is new. Use the signed transaction with `safe.post_transaction(safe_tx)` for a new proposal. For an existing proposal, submit the signature with `safe.post_signature(safe_tx, signature)`.

@@ -8,33 +8,25 @@ Brownie Safe allows you to iteratively build complex multi-step Gnosis Safe tran
 
 ## Installation
 
-```
-uv pip install brownie-safe --pre
+From a local checkout, install Brownie Safe and its locked dependencies with uv:
+
+```bash
+uv sync --locked
 ```
 
 ## Quickstart
 
+[Configure a local Ethereum fork](https://safe.ape.tax/install.html#configure-a-mainnet-fork), then follow the [quickstart](https://safe.ape.tax/quickstart.html) to build and preview a Safe transaction. Hosted proposals and confirmations use the Safe Queue Service.
+
+## Development
+
+Run the Queue Service tests from the synced checkout:
+
 ```bash
-brownie console --network mainnet-fork
+uv run --locked pytest tests/test_queue_service.py
 ```
 
-```python
-from brownie_safe import BrownieSafe
-safe = BrownieSafe('ychad.eth')
-
-dai = safe.contract('0x6B175474E89094C44Da98b954EedeAC495271d0F')
-vault = safe.contract('0x19D3364A399d251E894aC732651be8B0E4e85001')
-
-amount = dai.balanceOf(safe.account)
-dai.approve(vault, amount)
-vault.deposit(amount)
-
-safe_tx = safe.multisend_from_receipts()
-safe.preview(safe_tx)
-safe.post_transaction(safe_tx)
-```
-
-See [Documentation](https://safe.ape.tax/) for more examples and full reference.
+Use `uv build` to build the wheel and source distribution.
 
 ## Build the docs
 

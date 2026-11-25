@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Use the Safe Queue Service for hosted proposals, confirmations, and pending transactions.
+- Upgrade Brownie and SafeEthPy and use uv for dependency locking.
+
 ## 0.9.3
 
 - support authenticated Safe Transaction Service API

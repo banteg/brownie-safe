@@ -1,24 +1,24 @@
 # Quickstart
 
-Set `SAFE_AUTH_TOKEN` to your [Safe API key](https://docs.safe.global/core-api/how-to-use-api-keys) to read the pending queue, propose transactions, and submit confirmations.
-
-```bash
-pip install -U brownie-safe
-brownie console --network mainnet-fork
-```
+[Install Brownie Safe and start a mainnet fork](install.md). Use the address or ENS name of a deployed Safe with enough ETH for two 0.001 ETH transfers and gas. Enter two recipient addresses for this example.
 
 ```python
 from brownie_safe import BrownieSafe
-safe = BrownieSafe('ychad.eth')
 
-dai = safe.contract('0x6B175474E89094C44Da98b954EedeAC495271d0F')
-vault = safe.contract('0x19D3364A399d251E894aC732651be8B0E4e85001')
+safe = BrownieSafe(input("Safe address or ENS name: ").strip())
+recipient_a = input("First recipient address: ").strip()
+recipient_b = input("Second recipient address: ").strip()
 
-amount = dai.balanceOf(safe.account)
-dai.approve(vault, amount)
-vault.deposit(amount)
+first = safe.account.transfer(recipient_a, "0.001 ether")
+second = safe.account.transfer(recipient_b, "0.001 ether")
+receipts = [first, second]
 
-safe_tx = safe.multisend_from_receipts()
+safe_tx = safe.multisend_from_receipts(receipts, safe_nonce=safe.retrieve_nonce())
 safe.preview(safe_tx)
-safe.post_transaction(safe_tx)
 ```
+
+The two transfers run locally as the impersonated Safe. `preview` resets the fork by default and replays the batched transaction through the Safe contract. Passing the on-chain nonce keeps this preview independent of the hosted queue.
+
+If the Safe has a guard, the batch and the selected MultiSend deployment must satisfy the guard. Use the optional `multisend` argument to select a deployment already approved for that Safe.
+
+See the [detailed example](detailed.md) to build a batch from contract calls, account for pending proposals, and submit a proposal.
