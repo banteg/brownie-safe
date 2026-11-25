@@ -5,6 +5,7 @@
 - Use the Safe Queue Service for hosted proposals, confirmations, and pending transactions.
 - Upgrade Brownie and SafeEthPy and use uv for dependency locking.
 - Drop Ganache support for fork previews.
+- Make direct Trezor signing optional and support trezorlib 0.20.2.
 
 ## 0.9.3
 
