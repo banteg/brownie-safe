@@ -188,6 +188,22 @@ class ContractWrapper:
         return getattr(self.instance, attr)
     
 
+class _PreviewAccount(Account):
+    def __init__(self, account: Union[Account, LocalAccount], set_balance_method: str):
+        super().__init__(account.address)
+        self._account = account
+        self._lock = account._lock
+        self._set_balance_method = set_balance_method
+
+    def _transact(self, tx, allow_revert):
+        # Brownie has resolved the fee settings and gas limit before calling this hook.
+        fee_cap = tx['maxFeePerGas'] if 'maxFeePerGas' in tx else tx['gasPrice']
+        upfront_cost = tx['value'] + int(tx['gas'], 16) * int(fee_cap, 16)
+        if self.balance() < upfront_cost:
+            web3.manager.request_blocking(self._set_balance_method, [self.address, hex(upfront_cost)])
+        return self._account._transact(tx, allow_revert)
+
+
 def to_address(address):
     if is_address(address):
         return to_checksum_address(address)
@@ -450,24 +466,30 @@ class BrownieSafeBase(metaclass=ABCMeta):
         safe = Contract.from_abi('Gnosis Safe', self.address, self.contract.abi)
         # Replace pending nonce with the subsequent nonce, this could change the safe_tx_hash
         tx.safe_nonce = safe.nonce()
-        # Forge signatures from the needed amount of owners, skip the one which submits the tx
+        # Forge pre-validated signatures for the required number of owners.
         # Owners must be sorted numerically, sorting as checksum addresses may yield wrong order
         threshold = safe.getThreshold()
         sorted_owners = sorted(safe.getOwners(), key=lambda x: int(x, 16))
         owners = [accounts.at(owner, force=True) for owner in sorted_owners[:threshold]]
-        # Signautres are encoded as [bytes32 r, bytes32 s, bytes8 v]
+        # Signatures are encoded as [bytes32 r, bytes32 s, uint8 v].
         # Pre-validated signatures are encoded as r=owner, s unused and v=1.
         # https://docs.gnosis.io/safe/docs/contracts_signatures/#pre-validated-signatures
         tx.signatures = b''.join([encode(['address', 'uint'], [str(owner), 0]) + b'\x01' for owner in owners])
 
         # approvedHashes are in slot 8 and have type of mapping(address => mapping(bytes32 => uint256))
-        for owner in owners[:threshold]:
+        for owner in owners:
             outer_key = keccak(encode(['address', 'uint'], [str(owner), 8]))
             slot = int.from_bytes(keccak(tx.safe_tx_hash + outer_key), 'big')
             self.set_storage(tx.safe_address, slot, 1)
 
         payload = tx.w3_tx.build_transaction()
-        receipt = owners[0].transfer(payload['to'], payload['value'], gas_limit=payload['gas'], data=payload['data'])
+        set_balance_method = {
+            'anvil': 'anvil_setBalance',
+            'hardhat': 'hardhat_setBalance',
+            'ganache': 'evm_setAccountBalance',
+        }[self.client]
+        sender = _PreviewAccount(owners[0], set_balance_method)
+        receipt = sender.transfer(payload['to'], payload['value'], gas_limit=payload['gas'], data=payload['data'])
 
         if 'ExecutionSuccess' not in receipt.events:
             receipt.info()
@@ -482,7 +504,7 @@ class BrownieSafeBase(metaclass=ABCMeta):
 
     def preview(self, safe_tx: SafeTx, events=True, call_trace=False, reset=True, include_pending=False):
         """
-        Dry run a Safe transaction in a forked network environment.
+        Dry run a Safe transaction on a fork, funding the impersonated sender if needed.
         """
         if reset:
             chain.reset()
