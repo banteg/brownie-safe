@@ -54,8 +54,8 @@ def safe(monkeypatch):
     monkeypatch.setenv('SAFE_TRANSACTION_SERVICE_API_KEY', 'test-key')
     monkeypatch.setattr(module, 'web3', SimpleNamespace(provider=SimpleNamespace(endpoint_uri='http://localhost')))
     monkeypatch.setattr(module, 'EthereumClient', Mock(return_value=instance.ethereum_client))
-    monkeypatch.setattr(module, 'Safe', Mock(return_value=Mock(get_version=Mock(return_value='1.4.1'))))
-    monkeypatch.setitem(module.PATCHED_SAFE_VERSIONS, '1.4.1', Mock(return_value=instance))
+    monkeypatch.setattr(module, 'Safe', Mock())
+    monkeypatch.setattr(module, '_wrap', Mock(return_value=Mock(return_value=instance)))
     monkeypatch.setattr(module, 'MultiSend', Mock())
     monkeypatch.setattr(module, 'TransactionServiceApi', Mock(return_value=Mock()))
     return instance
