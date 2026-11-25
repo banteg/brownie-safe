@@ -30,6 +30,12 @@ Brownie Safe reads the first account Frame exposes at `http://127.0.0.1:1248` an
 
 ## Trezor
 
+Install the Trezor extra from the checkout:
+
+```bash
+uv sync --locked --extra trezor
+```
+
 Connect your Trezor and verify the signing request on the device.
 
 ```python

@@ -23,10 +23,6 @@ from safe_eth.safe.safe_tx import SafeTx
 from safe_eth.safe.signatures import signature_split, signature_to_bytes
 from safe_eth.util.http import prepare_http_session
 from hexbytes import HexBytes
-from trezorlib import ethereum, tools, ui
-from trezorlib.client import TrezorClient
-from trezorlib.messages import EthereumSignMessage
-from trezorlib.transport import get_transport
 from functools import cached_property
 
 
@@ -303,41 +299,49 @@ class BrownieSafeBase(metaclass=ABCMeta):
         """
         Sign a Safe transaction with a Trezor wallet.
 
-        Use on-device passphrase input when `use_passphrase` is true.
+        Request a passphrase when `use_passphrase` is true. Prefer on-device
+        entry when the device supports it.
 
         Use EIP-712 on Model T firmware 2.4.3 or later. Other devices or
         `force_eth_sign=True` use the eth_sign path.
         """
+        try:
+            from trezorlib import ethereum, tools
+            from trezorlib.cli import get_code_entry_code, get_passphrase
+            from trezorlib.cli.ui import ClickUI
+            from trezorlib.client import get_default_client, get_default_session
+        except ModuleNotFoundError as exc:
+            if exc.name != "trezorlib":
+                raise
+            raise ImportError("Install 'brownie-safe[trezor]' to sign with Trezor.") from exc
+
         path = tools.parse_path(derivation_path)
-        transport = get_transport()
-        # if not using passphrase, then set env var so that prompt is skipped
-        if not use_passphrase:
-            os.environ["PASSPHRASE"] = ""
-        # default to on-device passphrase input if `use_passphrase` is truthy
-        client = TrezorClient(transport=transport, ui=ui.ClickUI(passphrase_on_host=not use_passphrase))
-        account = ethereum.get_address(client, path)
-
-        if force_eth_sign:
-            use_eip712 = False
-        elif client.features.model == 'T': # Trezor T
-            use_eip712 = (client.features.major_version, client.features.minor_version, client.features.patch_version) >= (2, 4, 3) # fw ver >= 2.4.3
-        else:
-            use_eip712 = False
-
-        if use_eip712:
-            trez_sig = ethereum.sign_typed_data(client, path, safe_tx.eip712_structured_data)
-            v, r, s = signature_split(trez_sig.signature)
-        else:
-            # have to use this instead of trezorlib.ethereum.sign_message
-            # because that takes a string instead of bytes
-            trez_sig = client.call(
-                EthereumSignMessage(
-                    address_n=path,
-                    message=safe_tx.safe_tx_hash
-                )
+        ui = ClickUI()
+        client = get_default_client(
+            "Brownie Safe",
+            button_callback=ui.button_request,
+            pin_callback=ui.get_pin,
+            code_entry_callback=get_code_entry_code,
+        )
+        session = get_default_session(client, get_passphrase) if use_passphrase else client.get_session()
+        with session:
+            account = ethereum.get_address(session, path)
+            use_eip712 = (
+                not force_eth_sign
+                and session.features.model == "T"
+                and session.version >= (2, 4, 3)
             )
-            v, r, s = signature_split(trez_sig.signature)
-            # Gnosis adds 4 to `v` to denote an eth_sign signature
+            if use_eip712:
+                typed_data = safe_tx.eip712_structured_data
+                # Trezor expects EIP-712 bytes fields as hex strings.
+                typed_data["message"]["data"] = Web3.to_hex(safe_tx.data)
+                trez_sig = ethereum.sign_typed_data(session, path, typed_data)
+            else:
+                trez_sig = ethereum.sign_message(session, path, safe_tx.safe_tx_hash)
+
+        v, r, s = signature_split(trez_sig.signature)
+        if not use_eip712:
+            # Safe adds 4 to v to identify an eth_sign signature.
             v += 4
 
         signature = signature_to_bytes(v, r, s)
