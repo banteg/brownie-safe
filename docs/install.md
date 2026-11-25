@@ -2,7 +2,7 @@
 
 Install [uv](https://docs.astral.sh/uv/getting-started/installation/) and [Anvil](https://getfoundry.sh/anvil/). Brownie Safe supports Python 3.10 through 3.12. uv uses the lockfile to install Brownie and the Safe SDK together.
 
-This documentation follows the repository. PyPI's 0.9.3 release predates the hosted Safe Queue Service migration, so use a checkout for the hosted workflows in these guides.
+Use a checkout to follow the commands in this guide. Brownie Safe is also available on [PyPI](https://pypi.org/project/brownie-safe/).
 
 ```bash
 git clone https://github.com/banteg/brownie-safe.git

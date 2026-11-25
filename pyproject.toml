@@ -1,6 +1,6 @@
 [project]
 name = "brownie-safe"
-version = "0.9.3"
+version = "0.10.0"
 description = "Build complex Gnosis Safe transactions and safely preview them in a forked environment."
 authors = [{ name = "banteg" }]
 license = "MIT"
