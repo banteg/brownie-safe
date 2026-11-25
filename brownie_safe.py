@@ -15,7 +15,6 @@ from safe_eth.safe import Safe
 from safe_eth.eth import EthereumClient
 from safe_eth.eth.constants import NULL_ADDRESS
 from safe_eth.safe.api import SafeAPIException, TransactionServiceApi
-from safe_eth.safe.safe import SafeV111, SafeV120, SafeV130, SafeV141
 from safe_eth.safe.enums import SafeOperationEnum
 from safe_eth.safe.multi_send import MultiSend, MultiSendOperation, MultiSendTx
 from safe_eth.safe.safe_signature import SafeSignature
@@ -23,7 +22,7 @@ from safe_eth.safe.safe_tx import SafeTx
 from safe_eth.safe.signatures import signature_split, signature_to_bytes
 from safe_eth.util.http import prepare_http_session
 from hexbytes import HexBytes
-from functools import cached_property
+from functools import cache, cached_property
 
 
 class ExecutionFailure(Exception):
@@ -549,40 +548,29 @@ class BrownieSafeBase(metaclass=ABCMeta):
             self.preview_tx(safe_tx, events=events, call_trace=call_trace)
 
 
-class BrownieSafeV111(BrownieSafeBase, SafeV111):
-    pass
-
-class BrownieSafeV120(BrownieSafeBase, SafeV120):
-    pass
-
-class BrownieSafeV130(BrownieSafeBase, SafeV130):
-    pass
-
-class BrownieSafeV141(BrownieSafeBase, SafeV141):
-    pass
+@cache
+def _wrap(base, safe_class):
+    """
+    Combine Brownie Safe behaviour with the SDK class for one Safe version.
+    """
+    return type(f'Brownie{safe_class.__name__}', (base, safe_class), {})
 
 
-PATCHED_SAFE_VERSIONS = {
-    '1.1.1': BrownieSafeV111,
-    '1.2.0': BrownieSafeV120,
-    '1.3.0': BrownieSafeV130,
-    '1.4.1': BrownieSafeV141,
-}
-
-
-def BrownieSafe(address, base_url=None, multisend=None, auth_token=None):
+def BrownieSafe(address, base_url=None, multisend=None, auth_token=None, base=BrownieSafeBase):
     """
     Create a BrownieSafe from an address or ENS name.
 
     Use the hosted Safe Queue Service by default. Pass base_url to use a
     custom Safe Transaction Service for off-chain operations. Pass
     auth_token explicitly to authenticate to a custom service.
+
+    Pass base to use a BrownieSafeBase subclass, whatever the Safe version.
     """
     address = to_address(address)
     ethereum_client = EthereumClient(web3.provider.endpoint_uri)
+    # The SDK resolves the class for the Safe's on-chain version.
     safe = Safe(address, ethereum_client)
-    version = safe.get_version()
-    brownie_safe = PATCHED_SAFE_VERSIONS[version](address, ethereum_client)
+    brownie_safe = _wrap(base, type(safe))(address, ethereum_client)
     brownie_safe.multisend = MultiSend(ethereum_client, multisend, call_only=True)
 
     brownie_safe._transaction_service_base_url = base_url

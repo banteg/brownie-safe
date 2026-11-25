@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Support Safe 1.5.0.
+- Wrap whichever Safe class SafeEthPy resolves instead of a fixed list of versions.
+- Replace `PATCHED_SAFE_VERSIONS` and the per-version classes with the `base` argument of `BrownieSafe`.
+
 ## 0.10.0
 
 - Use the Safe Queue Service for hosted proposals, confirmations, and pending transactions.
