@@ -7,7 +7,7 @@ import click
 from web3 import Web3  # don't move below brownie import
 from brownie import Contract, accounts, chain, history, web3
 from brownie.convert.datatypes import EthAddress
-from brownie.network.account import LocalAccount
+from brownie.network.account import Account, LocalAccount
 from brownie.network.transaction import TransactionReceipt
 from eth_abi import encode
 from eth_utils import is_address, to_checksum_address, encode_hex, keccak
@@ -222,9 +222,9 @@ class BrownieSafeBase(metaclass=ABCMeta):
         return match.group(1) if match else client_version
 
     @property
-    def account(self) -> LocalAccount:
+    def account(self) -> Union[Account, LocalAccount]:
         """
-        Unlocked Brownie account for Gnosis Safe.
+        Brownie account for the Safe, impersonated on a development fork.
         """
         return accounts.at(self.address, force=True)
 
@@ -276,9 +276,9 @@ class BrownieSafeBase(metaclass=ABCMeta):
         assert isinstance(signer, LocalAccount), 'Signer must be a name of brownie account or LocalAccount'
         return signer
 
-    def sign_transaction(self, safe_tx: SafeTx, signer=None) -> SafeTx:
+    def sign_transaction(self, safe_tx: SafeTx, signer=None) -> bytes:
         """
-        Sign a Safe transaction with a private key account.
+        Sign with a local Brownie account and return the signature bytes.
         """
         signer = self.get_signer(signer)
         return safe_tx.sign(signer.private_key)
@@ -287,13 +287,10 @@ class BrownieSafeBase(metaclass=ABCMeta):
         """
         Sign a Safe transaction with a Trezor wallet.
 
-        Defaults to no passphrase (and skips passphrase prompt) by default.
-        Uses on-device passphrase input if `use_passphrase` is truthy
+        Use on-device passphrase input when `use_passphrase` is true.
 
-        Defaults to EIP-712 signatures on wallets & fw revisions that support it:
-        - TT fw >v2.4.3 (clear signing only)
-        - T1: not yet, and maybe only blind signing
-        Otherwise (or if `force_eth_sign` is truthy), use eth_sign instead
+        Use EIP-712 on Model T firmware 2.4.3 or later. Other devices or
+        `force_eth_sign=True` use the eth_sign path.
         """
         path = tools.parse_path(derivation_path)
         transport = get_transport()
@@ -364,7 +361,7 @@ class BrownieSafeBase(metaclass=ABCMeta):
 
     def post_transaction(self, safe_tx: SafeTx):
         """
-        Submit a Safe transaction to a transaction service.
+        Submit a proposal to the hosted Queue Service or configured custom service.
         Prompts for a signature if needed.
         """
         if not safe_tx.sorted_signers:
@@ -375,7 +372,7 @@ class BrownieSafeBase(metaclass=ABCMeta):
 
     def post_signature(self, safe_tx: SafeTx, signature: bytes):
         """
-        Submit a confirmation signature to a transaction service.
+        Submit a confirmation to the hosted Queue Service or configured custom service.
         """
         if self._queue_service is None:
             self.transaction_service.post_signatures(safe_tx.safe_tx_hash, signature)
@@ -385,7 +382,7 @@ class BrownieSafeBase(metaclass=ABCMeta):
     @property
     def pending_transactions(self) -> List[SafeTx]:
         """
-        Retrieve pending transactions from the transaction service.
+        Retrieve pending transactions from the hosted Queue Service or custom service.
         """
         queue = self._queue_service
         if queue is None:
@@ -495,16 +492,16 @@ class BrownieSafeBase(metaclass=ABCMeta):
 
     def execute_transaction(self, safe_tx: SafeTx, signer=None) -> TransactionReceipt:
         """
-        Execute a fully signed transaction likely retrieved from the pending_transactions method.
+        Execute a fully signed transaction on the connected Brownie network.
         """
         payload = safe_tx.w3_tx.build_transaction()
         signer = self.get_signer(signer)
         receipt = signer.transfer(payload['to'], payload['value'], gas_limit=payload['gas'], data=payload['data'])
         return receipt
 
-    def execute_transaction_with_frame(self, safe_tx: SafeTx, frame_rpc="http://127.0.0.1:1248") -> bytes:
+    def execute_transaction_with_frame(self, safe_tx: SafeTx, frame_rpc="http://127.0.0.1:1248") -> None:
         """
-        Execute a fully signed transaction with frame. Use this option with hardware wallets.
+        Switch Frame to the connected chain ID and submit a fully signed transaction.
         """
         # Requesting accounts triggers a connection prompt
         frame = Web3(Web3.HTTPProvider(frame_rpc, {'timeout': 600}))
@@ -554,8 +551,9 @@ def BrownieSafe(address, base_url=None, multisend=None, auth_token=None):
     """
     Create a BrownieSafe from an address or ENS name.
 
-    Pass base_url to use a custom Safe Transaction Service for off-chain operations.
-    Use auth_token to authenticate to a custom service.
+    Use the hosted Safe Queue Service by default. Pass base_url to use a
+    custom Safe Transaction Service for off-chain operations. Pass
+    auth_token explicitly to authenticate to a custom service.
     """
     address = to_address(address)
     ethereum_client = EthereumClient(web3.provider.endpoint_uri)

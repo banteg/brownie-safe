@@ -16,27 +16,7 @@ uv sync --locked
 
 ## Quickstart
 
-```bash
-uv run --locked brownie console --network mainnet-fork
-```
-
-```python
-from brownie_safe import BrownieSafe
-safe = BrownieSafe('ychad.eth')
-
-dai = safe.contract('0x6B175474E89094C44Da98b954EedeAC495271d0F')
-vault = safe.contract('0x19D3364A399d251E894aC732651be8B0E4e85001')
-
-amount = dai.balanceOf(safe.account)
-dai.approve(vault, amount)
-vault.deposit(amount)
-
-safe_tx = safe.multisend_from_receipts()
-safe.preview(safe_tx)
-safe.post_transaction(safe_tx)
-```
-
-See [Documentation](https://safe.ape.tax/) for more examples and full reference.
+[Configure a local Ethereum fork](https://safe.ape.tax/install.html#configure-a-mainnet-fork), then follow the [quickstart](https://safe.ape.tax/quickstart.html) to build and preview a Safe transaction. Hosted proposals and confirmations use the Safe Queue Service.
 
 ## Development
 
@@ -47,3 +27,13 @@ uv run --locked pytest tests/test_queue_service.py
 ```
 
 Use `uv build` to build the wheel and source distribution.
+
+## Build the docs
+
+From the repository root, use [uv](https://docs.astral.sh/uv/) to build the site:
+
+```sh
+uv run --no-project --python 3.12 --with-requirements docs-requirements.txt zensical build --clean --strict
+```
+
+Use `zensical serve` in place of `zensical build --clean --strict` to preview changes locally.
