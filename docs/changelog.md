@@ -4,6 +4,7 @@
 
 - Use the Safe Queue Service for hosted proposals, confirmations, and pending transactions.
 - Upgrade Brownie and SafeEthPy and use uv for dependency locking.
+- Drop Ganache support for fork previews.
 
 ## 0.9.3
 

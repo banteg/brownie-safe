@@ -12,7 +12,7 @@ uv sync --locked
 
 ## Configure a mainnet fork
 
-Set `ETH_RPC_URL` to an Ethereum mainnet RPC URL that Anvil can fork from. Register the development network once, then start the console from the checkout.
+Fork previews support Anvil and Hardhat. For the Anvil setup below, set `ETH_RPC_URL` to an Ethereum mainnet RPC URL that Anvil can fork from. Register the development network once, then start the console from the checkout.
 
 ```bash
 uv run --locked brownie networks add development brownie-safe-fork \
