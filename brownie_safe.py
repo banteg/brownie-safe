@@ -15,7 +15,7 @@ from safe_eth.safe import Safe
 from safe_eth.eth import EthereumClient
 from safe_eth.eth.constants import NULL_ADDRESS
 from safe_eth.safe.api import SafeAPIException, TransactionServiceApi
-from safe_eth.safe.safe import SafeV111, SafeV120, SafeV130, SafeV141
+from safe_eth.safe.safe import SafeV111, SafeV120, SafeV130, SafeV141, SafeV150
 from safe_eth.safe.enums import SafeOperationEnum
 from safe_eth.safe.multi_send import MultiSend, MultiSendOperation, MultiSendTx
 from safe_eth.safe.safe_signature import SafeSignature
@@ -561,12 +561,16 @@ class BrownieSafeV130(BrownieSafeBase, SafeV130):
 class BrownieSafeV141(BrownieSafeBase, SafeV141):
     pass
 
+class BrownieSafeV150(BrownieSafeBase, SafeV150):
+    pass
+
 
 PATCHED_SAFE_VERSIONS = {
     '1.1.1': BrownieSafeV111,
     '1.2.0': BrownieSafeV120,
     '1.3.0': BrownieSafeV130,
     '1.4.1': BrownieSafeV141,
+    '1.5.0': BrownieSafeV150,
 }
 
 

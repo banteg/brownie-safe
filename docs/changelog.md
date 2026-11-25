@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Support Safe 1.5.0.
+
 ## 0.10.0
 
 - Use the Safe Queue Service for hosted proposals, confirmations, and pending transactions.
