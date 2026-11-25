@@ -234,7 +234,7 @@ class BrownieSafeBase(metaclass=ABCMeta):
     @cached_property
     def client(self):
         client_version = web3.client_version
-        match = re.search('(anvil|hardhat|ganache)', client_version.lower())
+        match = re.search('(anvil|hardhat)', client_version.lower())
         return match.group(1) if match else client_version
 
     @property
@@ -452,16 +452,18 @@ class BrownieSafeBase(metaclass=ABCMeta):
         """
         return self.estimate_tx_gas(safe_tx.to, safe_tx.value, safe_tx.data, safe_tx.operation)
 
+    def _fork_rpc_method(self, method: str) -> str:
+        if self.client not in {'anvil', 'hardhat'}:
+            raise NotImplementedError('Fork previews require Anvil or Hardhat')
+        return f'{self.client}_{method}'
+
     def set_storage(self, account: str, slot: int, value: int):
+        method = self._fork_rpc_method('setStorageAt')
         params = [account, hex(slot), encode_hex(encode(['uint'], [value]))]
-        method = {
-            'anvil': 'anvil_setStorageAt',
-            'hardhat': 'hardhat_setStorageAt',
-            'ganache': 'evm_setAccountStorageAt',
-        }
-        web3.manager.request_blocking(method[self.client], params)
+        web3.manager.request_blocking(method, params)
 
     def preview_tx(self, safe_tx: SafeTx, events=True, call_trace=False) -> TransactionReceipt:
+        set_balance_method = self._fork_rpc_method('setBalance')
         tx = copy(safe_tx)
         safe = Contract.from_abi('Gnosis Safe', self.address, self.contract.abi)
         # Replace pending nonce with the subsequent nonce, this could change the safe_tx_hash
@@ -483,11 +485,6 @@ class BrownieSafeBase(metaclass=ABCMeta):
             self.set_storage(tx.safe_address, slot, 1)
 
         payload = tx.w3_tx.build_transaction()
-        set_balance_method = {
-            'anvil': 'anvil_setBalance',
-            'hardhat': 'hardhat_setBalance',
-            'ganache': 'evm_setAccountBalance',
-        }[self.client]
         sender = _PreviewAccount(owners[0], set_balance_method)
         receipt = sender.transfer(payload['to'], payload['value'], gas_limit=payload['gas'], data=payload['data'])
 
