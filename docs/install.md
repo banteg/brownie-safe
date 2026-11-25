@@ -12,7 +12,7 @@ uv sync --locked
 
 ## Configure a mainnet fork
 
-Export `ETH_RPC_URL` to an Ethereum mainnet RPC URL that Anvil can fork from. Register the upstream network and the development fork once. Brownie uses the upstream network’s explorer settings on the fork.
+Fork previews support Anvil and Hardhat. For the Anvil setup below, export `ETH_RPC_URL` with an Ethereum mainnet RPC URL. Register the upstream network and the development fork once so Brownie can use the upstream network’s explorer settings on the fork.
 
 ```bash
 uv run --locked brownie networks add Ethereum brownie-safe-mainnet \
@@ -27,7 +27,7 @@ The local RPC listens on port 8546 and uses a zero base fee for simulation. Opco
 
 ## Load verified contracts
 
-Export `ETHERSCAN_TOKEN` with your Etherscan API key. From the checkout, run `mkdir -p contracts` so Brownie recognizes it as a project. Add this setting to `brownie-config.yaml`:
+The detailed WETH example uses Brownie’s automatic ABI lookup. Export `ETHERSCAN_TOKEN` with your Etherscan API key. From the checkout, run `mkdir -p contracts` so Brownie recognizes it as a project. Add the following setting to `brownie-config.yaml`.
 
 ```yaml
 autofetch_sources: true
